@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Install with: ./scripts/install_services.sh install
+     Reports from an attached Rayhunter hotspot every 15 minutes. Harmless
+     without a device: the reader waits quietly for ADB. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>org.raymap.device</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/admin/raymap-map/scripts/run_adb_reader.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/admin/raymap-map</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+
+  <key>StandardOutPath</key>
+  <string>/Users/admin/Library/Logs/raymap-device.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/admin/Library/Logs/raymap-device.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+</dict>
+</plist>

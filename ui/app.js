@@ -119,7 +119,7 @@ function featureFor(cell, props) {
   const properties = props || {
     h3: cell, res: currentRes, status: "no_data", confidence: "none",
     device_count: 0, report_count: 0, detection_count: 0,
-    detection_device_count: 0, day: null, last_ts: null,
+    detection_device_count: 0, day: null,
   };
   return {
     type: "Feature",
@@ -313,8 +313,7 @@ function addLayers() {
       html +=
         `reports: ${p.report_count} · devices: ${p.device_count}<br>` +
         `detections: ${p.detection_count} · detecting devices: ${p.detection_device_count}<br>` +
-        `day: ${p.day}` +
-        (p.last_ts ? `<br>last report: ${new Date(p.last_ts).toLocaleString()}` : "");
+        `day: ${p.day}`;
       if (p.confidence === "single") html += "<br><em>Single device — not corroborated.</em>";
     }
     html += `<br><span class="mono">${p.h3} · r${p.res}</span>`;

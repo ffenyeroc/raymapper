@@ -7,7 +7,7 @@ Usage:
     docker compose up -d            # PostGIS on 127.0.0.1:5433
     python seed.py [--rows 300000] [--days 7] [--devices 1000] [--cluster]
 
-Reports are snapped to H3 cells (r3..r8) exactly like the API does; no precise
+Reports are snapped to H3 cells (r3..r7) exactly like the API does; no precise
 coordinates are stored. `--cluster` concentrates most points in a few metros,
 which is what real collector data looks like (random points rarely share a cell).
 """
@@ -26,7 +26,7 @@ import psycopg
 DATABASE_URL = os.environ.get(
     "DATABASE_URL", "postgresql://raymap:raymap@127.0.0.1:5433/raymap"
 )
-RESOLUTIONS = (3, 4, 5, 6, 7, 8)
+RESOLUTIONS = (3, 4, 5, 6, 7)
 
 # lat, lon, spread (degrees)
 METROS = [
@@ -38,9 +38,9 @@ METROS = [
 ]
 
 INSERT = """
-INSERT INTO reports (device_hash, ts, h3_r3, h3_r4, h3_r5, h3_r6, h3_r7, h3_r8,
+INSERT INTO reports (device_hash, ts, h3_r3, h3_r4, h3_r5, h3_r6, h3_r7,
                      rssi_dbm, detection, network)
-VALUES (%s, to_timestamp(%s), %s, %s, %s, %s, %s, %s, %s, %s, %s)
+VALUES (%s, to_timestamp(%s), %s, %s, %s, %s, %s, %s, %s, %s)
 ON CONFLICT (device_hash, ts) DO NOTHING
 """
 

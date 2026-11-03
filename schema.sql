@@ -8,7 +8,7 @@
 --   r5      253 km2  ~20 km
 --   r6       36 km2  ~7.4 km
 --   r7      5.2 km2  ~2.8 km
---   r8     0.74 km2  ~1.06 km          (finest allowed; ~ today's geohash-6)
+--   r7     5.2 km2   ~2.8 km           (detection-archive key; finest stored)
 --
 -- Retention: raw 72h, daily cells 90d, detection months indefinite.
 -- ============================================================================
@@ -31,7 +31,6 @@ CREATE TABLE IF NOT EXISTS reports (
     h3_r5       text NOT NULL CHECK (char_length(h3_r5) = 15),
     h3_r6       text NOT NULL CHECK (char_length(h3_r6) = 15),
     h3_r7       text NOT NULL CHECK (char_length(h3_r7) = 15),
-    h3_r8       text NOT NULL CHECK (char_length(h3_r8) = 15),
     rssi_dbm    integer,
     detection   text,
     network     text,
@@ -45,7 +44,7 @@ CREATE INDEX IF NOT EXISTS idx_reports_ts ON reports (ts);
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS daily_cells (
     day                     date NOT NULL,
-    res                     smallint NOT NULL CHECK (res BETWEEN 3 AND 8),
+    res                     smallint NOT NULL CHECK (res BETWEEN 3 AND 7),
     cell                    text NOT NULL CHECK (char_length(cell) = 15),
     device_count            integer NOT NULL DEFAULT 0,
     report_count            integer NOT NULL DEFAULT 0,
@@ -76,7 +75,7 @@ BEGIN
         max(ts)
     FROM reports,
          LATERAL (VALUES (3, h3_r3), (4, h3_r4), (5, h3_r5),
-                         (6, h3_r6), (7, h3_r7), (8, h3_r8)) AS r(res, cell)
+                         (6, h3_r6), (7, h3_r7)) AS r(res, cell)
     WHERE ts > now() - make_interval(days => p_lookback_days)
     GROUP BY 1, 2, 3
     ON CONFLICT (day, res, cell) DO UPDATE SET

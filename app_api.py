@@ -48,10 +48,11 @@ DATABASE_URL = os.environ.get(
 # set RAYMAP_ADMIN_TOKEN before exposing this host to a network.
 ADMIN_TOKEN = os.environ.get("RAYMAP_ADMIN_TOKEN", "")
 
-# Stored per report: r7 is the detection-archive key, r8 the original floor.
-HEX_RESOLUTIONS = tuple(range(3, 9))
+# Stored per report: r7 is the detection-archive key. r8 was dropped: it held
+# the finest location at rest and nothing read it.
+HEX_RESOLUTIONS = tuple(range(3, 8))
 # Served/displayed band. The map's minimum cell size is r6 (~7.4 km across), so
-# the API refuses anything finer even though r7/r8 remain stored.
+# the API refuses anything finer even though r7 remains stored.
 HEX_RES_MIN = 3
 HEX_RES_MAX = 6
 DEFAULT_RES = max(
@@ -94,7 +95,7 @@ def clamp_days(days: int) -> int:
 
 
 def clamp_res(res: int) -> int:
-    """Bound resolution to the privacy band (r3 min, r8 max)."""
+    """Bound resolution to the served band (r3..r6)."""
     try:
         res = int(res)
     except (TypeError, ValueError):
@@ -146,7 +147,7 @@ def fold_history(rows: List[Tuple[Any, ...]], res: int) -> Dict[Tuple[date, str]
 
 
 def h3_columns(lat: float, lng: float) -> Dict[str, str]:
-    """H3 index for every stored resolution (r3..r8)."""
+    """H3 index for every stored resolution (r3..r7)."""
     return {f"h3_r{r}": h3.latlng_to_cell(lat, lng, r) for r in HEX_RESOLUTIONS}
 
 
@@ -283,7 +284,7 @@ async def lifespan(_app: FastAPI):
         thread.join(timeout=5)
 
 
-app = FastAPI(title="raymap-map API", version="0.3.0", lifespan=lifespan)
+app = FastAPI(title="raymap-map API", version="0.3.1", lifespan=lifespan)
 
 # Local hosting: same origin. Tighten if the UI is ever served elsewhere.
 app.add_middleware(
@@ -302,9 +303,9 @@ def _conn():
 # Ingest
 # ---------------------------------------------------------------------------
 INSERT_REPORT = """
-INSERT INTO reports (device_hash, ts, h3_r3, h3_r4, h3_r5, h3_r6, h3_r7, h3_r8,
+INSERT INTO reports (device_hash, ts, h3_r3, h3_r4, h3_r5, h3_r6, h3_r7,
                      rssi_dbm, detection, network)
-VALUES (%s, to_timestamp(%s), %s, %s, %s, %s, %s, %s, %s, %s, %s)
+VALUES (%s, to_timestamp(%s), %s, %s, %s, %s, %s, %s, %s, %s)
 ON CONFLICT (device_hash, ts) DO NOTHING
 """
 
@@ -436,7 +437,7 @@ def geojson(days: int = 30, res: int = DEFAULT_RES,
     box = parse_bbox(bbox)
     query = """
         SELECT day, cell, device_count, report_count,
-               detection_count, detection_device_count, last_ts
+               detection_count, detection_device_count
         FROM daily_cells
         WHERE res = %s
           AND day >= (now() - make_interval(days => %s))::date
@@ -454,7 +455,7 @@ def geojson(days: int = 30, res: int = DEFAULT_RES,
             rows = cur.fetchall()
 
     features = []
-    for day, cell, dev, rep, det, det_dev, last_ts in rows:
+    for day, cell, dev, rep, det, det_dev in rows:
         lat, lng = h3.cell_to_latlng(cell)
         if box and not (box[0] <= lng <= box[2] and box[1] <= lat <= box[3]):
             continue
@@ -474,7 +475,6 @@ def geojson(days: int = 30, res: int = DEFAULT_RES,
                     "detection_device_count": det_dev,
                     "status": status,
                     "confidence": confidence,
-                    "last_ts": last_ts.isoformat() if last_ts else None,
                 },
                 "geometry": {"type": "Point", "coordinates": [lng, lat]},
             }
@@ -721,7 +721,6 @@ def detections(start: Optional[str] = None, end: Optional[str] = None,
                     "detection_device_count": det_dev,
                     "status": status,
                     "confidence": confidence,
-                    "last_report": last.isoformat() if last else None,
                 },
                 "geometry": {"type": "Point", "coordinates": [lng, lat]},
             }

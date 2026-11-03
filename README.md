@@ -10,10 +10,11 @@ over the US. Hosted locally for now: uvicorn + PostGIS in Docker Compose. The cl
 ## Privacy model
 
 - **No precise coordinates are ever stored.** Each report is snapped to **H3 cells at
-  resolutions 3–8** and the lat/lon are discarded.
-- **The smallest cell the map shows is r6** (36 km², ~7.4 km across) at any zoom. r7 and r8
-  are still stored (r7 keys the detection archive) but the API clamps requests to r3–r6, so
-  the floor is enforced server-side, not just in the UI.
+  resolutions 3–7** and the lat/lon are discarded.
+- **The smallest cell the map shows is r6** (36 km², ~7.4 km across) at any zoom. r7 is still
+  stored (it keys the detection archive) but the API clamps requests to r3–r6, so the floor is
+  enforced server-side, not just in the UI. r8 (0.74 km²) is not stored at all: nothing read
+  it, so keeping it only meant holding the finest location at rest.
 - Device ids are random per install and hashed before upload. Single-device cells are shown
   but **marked unconfirmed** (hollow).
 - **Grey means “no reports here”, not “safe”.** The UI says so in the legend and the tooltip.
@@ -25,7 +26,6 @@ over the US. Hosted locally for now: uvicorn + PostGIS in Docker Compose. The cl
 | r5 | 253 km² | ~20 km | 8 |
 | r6 | 36 km² | ~7.4 km | ≥ 9 — **smallest cell shown** |
 | r7 | 5.2 km² | ~2.8 km | stored only (detection-archive key) |
-| r8 | 0.74 km² | ~1.06 km | stored only |
 
 ## Retention
 
@@ -56,9 +56,11 @@ Aggregation and detection-folding run **before** pruning, so nothing is lost whe
 
 ## Running locally as a service
 
-`./scripts/install_services.sh install` installs two launchd agents — the API (KeepAlive,
-bound to 127.0.0.1:8000) and a 03:30 nightly `pg_dump` — so the deployment survives reboots
-and the database is backed up. Configuration lives in `.env` (copy `.env.example`).
+`./scripts/install_services.sh install` installs three launchd agents — the API (KeepAlive,
+bound to 127.0.0.1:8000), a 03:30 nightly `pg_dump`, and the device reader (posts every 15
+minutes while a Rayhunter hotspot is attached, waits quietly when none is) — so the
+deployment survives reboots and the database is backed up. Configuration lives in `.env`
+(copy `.env.example`).
 
 Start/stop, backups, restore drills, moderation, upgrades and troubleshooting are in
 [`RUNBOOK.md`](RUNBOOK.md).
@@ -81,7 +83,7 @@ docker compose down -v && docker compose up -d   # reset: the schema is H3-based
 | Endpoint | Description |
 |---|---|
 | `POST /ingest` | Collector batch: `{device, count, records:[...]}`, optional gzip, **`X-Raymap-Pow` required**. Returns `{inserted, rejected, first_error?}`. |
-| `GET /geojson?days=7&res=6&bbox=w,s,e,n` | Aggregated hex cells. `days` bounded 1–90, `res` clamped to **3–6** (`res=7|8` returns r6), `bbox` optional (viewport filter). Features carry `h3`, `res`, `status`, `confidence`, counts and `last_ts`; the response carries `attribution` (CC BY 4.0). |
+| `GET /geojson?days=7&res=6&bbox=w,s,e,n` | Aggregated hex cells. `days` bounded 1–90, `res` clamped to **3–6** (`res=7|8` returns r6), `bbox` optional (viewport filter). Features carry `h3`, `res`, `status`, `confidence` and counts — time resolution is the day; no report timestamps are returned. The response carries `attribution` (CC BY 4.0). |
 | `POST /internal/refresh?days=30` | Recompute `daily_cells` (all resolutions) and fold `detection_months`. |
 | `POST /internal/maintain` | refresh + fold + prune, in that order (runs automatically every `RAYMAP_MAINTAIN_INTERVAL_S`). |
 | `GET /detections?start=YYYY-MM&end=YYYY-MM&res=6&min_devices=1&bbox=w,s,e,n` | Month-level **detection history** from the archive, folded to ≤ r6 so history never resolves finer than the map. CC BY 4.0. |
@@ -174,9 +176,10 @@ Ban a device: `INSERT INTO blocked_devices (device_hash, reason) VALUES ('<hash>
 | `seed.py` | Schema apply + simulated reports (`--cluster` for realistic density) |
 | `adb_reader.py` | Interim path: pull device data over ADB and post to `/ingest` |
 | `scripts/migrate_to_hex.py` | One-time geohash→H3 migration (presence rebuilt, archive preserved) |
+| `scripts/migrate_drop_r8.py` | One-time drop of the unused `h3_r8` column |
 | `scripts/check_state_coverage.py` | Per-state cell counts + mesh coverage check |
 | `scripts/build_places.py` | Rebuilds `ui/data/places.json.gz` from the Census gazetteer (`--download`) |
-| `launchd/`, `scripts/install_services.sh` | launchd agents for the API and nightly backups |
+| `launchd/`, `scripts/install_services.sh` | launchd agents for the API, nightly backups and the device reader |
 | `scripts/backup_db.sh` / `scripts/run_api.sh` | `pg_dump` with pruning / service entry point |
 | `RUNBOOK.md` | Operations: start/stop, backups, restore drill, moderation, upgrades |
 | `test_api.py`, `test_adb.py`, `ui/test_geo.js`, `ui/test_search.js` | Unit tests |

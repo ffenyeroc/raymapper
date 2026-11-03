@@ -7,7 +7,7 @@
 | PostGIS database | Docker Compose (`restart: unless-stopped`) | `docker logs raymap_db` |
 | API + map UI | launchd `org.raymap.api` (KeepAlive, binds 127.0.0.1:8000) | `~/Library/Logs/raymap-api.log` |
 | Nightly backup | launchd `org.raymap.backup` (03:30) | `~/Library/Logs/raymap-backup.log` |
-| Collector | launchd, only once a device is attached (raymap-collector repo) | `raymap-collector/raymap-collector.log` |
+| Device reader | launchd `org.raymap.device` (posts every 15 min while a hotspot is attached) | `~/Library/Logs/raymap-device.log` |
 
 Docker Desktop must start at login for the database to come back after a reboot
 (Settings → General → *Start Docker Desktop when you sign in*). The API waits up to 60 s
@@ -17,7 +17,7 @@ for the port before starting, so boot order is not critical.
 
 ```bash
 ./scripts/install_services.sh status     # are the agents loaded?
-./scripts/install_services.sh install    # install/refresh both agents
+./scripts/install_services.sh install    # install/refresh all agents
 ./scripts/install_services.sh uninstall  # stop and remove them
 
 launchctl kickstart -k gui/$(id -u)/org.raymap.api   # restart the API
@@ -124,16 +124,22 @@ Reach it from the Mac with an ADB forward (no HoRNDIS needed):
 adb devices                                  # 764fa857 ... device
 adb forward tcp:8080 tcp:8080
 curl -s localhost:8080/api/time              # daemon is alive
+```
 
-# ADB path: detections + GPS straight from the device files, 15-minute cadence
-./.venv/bin/python adb_reader.py --once
-./.venv/bin/python adb_reader.py --interval 900
+Reporting runs as a service — `org.raymap.device` wraps `scripts/run_adb_reader.sh`, which
+runs `adb_reader.py --interval 900` (detections + GPS straight from the device files) and
+re-arms itself if the device is unplugged. Nothing to start by hand:
+
+```bash
+launchctl kickstart -k gui/$(id -u)/org.raymap.device   # restart the reader
+tail -f ~/Library/Logs/raymap-device.log                # one line per report
+./.venv/bin/python adb_reader.py --once --dry-run       # inspect without uploading
 ```
 
 - The device is configured `gps_mode = 1` (fixed) at its own coordinates; `/api/gps` returns them.
 - Uploads are proof-of-work signed and land on the map as `clear_single` cells until an
   analyzer event fires — green means "no detection reported", not "no catcher".
-- Coarsening applies automatically: the device's cell is published at r5, not r6.
+- The device's cell is published at r6 (7.4 km), like any other single-device cell.
 - Raw `qmdl` captures accumulate on the device (~47 MB after 33 sessions of 214 MB). Delete
   old ones periodically — they contain identifiers we deliberately never upload.
 
@@ -186,6 +192,13 @@ git pull
 # apply schema changes (idempotent), or a migration script if one is named in the commit
 ./.venv/bin/python -c "import psycopg;s=open('schema.sql').read();c=psycopg.connect('postgresql://raymap:raymap@127.0.0.1:5433/raymap');c.cursor().execute(s);c.commit()"
 launchctl kickstart -k gui/$(id -u)/org.raymap.api
+```
+
+Dropping `reports.h3_r8` (schema v0.3.1) needs more than `schema.sql`, which only adds:
+
+```bash
+./.venv/bin/python scripts/migrate_drop_r8.py --dry-run   # inspect
+./.venv/bin/python scripts/migrate_drop_r8.py             # apply (idempotent)
 ```
 
 ## Troubleshooting
