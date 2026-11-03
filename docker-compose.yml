@@ -2,6 +2,7 @@ services:
   db:
     image: postgis/postgis:16-3.4
     container_name: raymap_db
+    restart: unless-stopped   # survive reboots once Docker Desktop is running
     environment:
       POSTGRES_USER: raymap
       POSTGRES_PASSWORD: raymap

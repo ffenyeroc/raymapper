@@ -50,6 +50,15 @@ Aggregation and detection-folding run **before** pruning, so nothing is lost whe
   that place. Lookup is a vendored Census gazetteer (`ui/data/places.json.gz`, ~32k places and
   ~34k ZIPs) so queries never leave the browser — no geocoding service, no leaked IPs.
 
+## Running locally as a service
+
+`./scripts/install_services.sh install` installs two launchd agents — the API (KeepAlive,
+bound to 127.0.0.1:8000) and a 03:30 nightly `pg_dump` — so the deployment survives reboots
+and the database is backed up. Configuration lives in `.env` (copy `.env.example`).
+
+Start/stop, backups, restore drills, moderation, upgrades and troubleshooting are in
+[`RUNBOOK.md`](RUNBOOK.md).
+
 ## Local development
 
 ```bash
@@ -163,7 +172,10 @@ Ban a device: `INSERT INTO blocked_devices (device_hash, reason) VALUES ('<hash>
 | `scripts/migrate_to_hex.py` | One-time geohash→H3 migration (presence rebuilt, archive preserved) |
 | `scripts/check_state_coverage.py` | Per-state cell counts + mesh coverage check |
 | `scripts/build_places.py` | Rebuilds `ui/data/places.json.gz` from the Census gazetteer (`--download`) |
-| `test_api.py`, `test_adb.py`, `ui/test_geo.js` | Unit tests |
+| `launchd/`, `scripts/install_services.sh` | launchd agents for the API and nightly backups |
+| `scripts/backup_db.sh` / `scripts/run_api.sh` | `pg_dump` with pruning / service entry point |
+| `RUNBOOK.md` | Operations: start/stop, backups, restore drill, moderation, upgrades |
+| `test_api.py`, `test_adb.py`, `ui/test_geo.js`, `ui/test_search.js` | Unit tests |
 | `LICENSE` / `LICENSE-DATA` / `NOTICE` | Apache-2.0 code, CC BY 4.0 data, third-party attribution |
 
 ## Tests
