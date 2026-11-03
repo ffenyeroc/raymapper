@@ -168,8 +168,7 @@ curl -X POST 'localhost:8000/internal/refresh?days=30'
 ```
 
 `audit_log` is intentionally kept — it is the operator history, not report data.
-A lone remaining device will be published coarsened (r5, ~20 km), which is the
-privacy behaviour working as intended.
+A lone remaining device is published at r6 (~7.4 km), the finest cell the map shows.
 
 ## Reset the dev database (destructive)
 

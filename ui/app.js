@@ -117,8 +117,7 @@ function boundary(cell) {
 
 function featureFor(cell, props) {
   const properties = props || {
-    h3: cell, res: currentRes, precision: "normal",
-    status: "no_data", confidence: "none",
+    h3: cell, res: currentRes, status: "no_data", confidence: "none",
     device_count: 0, report_count: 0, detection_count: 0,
     detection_device_count: 0, day: null, last_ts: null,
   };
@@ -130,51 +129,20 @@ function featureFor(cell, props) {
 }
 
 function render() {
-  // Coarsened lone-device cells are one level larger than the mesh; drop the
-  // finer mesh cells they cover so grey does not show through the big hex.
-  const loneByRes = new Map();
-  for (const [cell, props] of dataByCell) {
-    if (props.precision === "low") {
-      const r = props.res;
-      if (!loneByRes.has(r)) loneByRes.set(r, new Set());
-      loneByRes.get(r).add(cell);
-    }
-  }
-
   const features = [];
   const seen = new Set();
   for (const cell of meshCells) {
-    let covered = false;
-    for (const [r, cells] of loneByRes) {
-      if (r < currentRes && cells.has(h3.cellToParent(cell, r))) {
-        covered = true;
-        break;
-      }
-    }
-    if (covered) continue;
     features.push(featureFor(cell, dataByCell.get(cell)));
     seen.add(cell);
   }
-  // Never hide a reported cell because the mesh missed it (e.g. coastlines).
-  // Coarsened cells are exempt from the viewport test: the API already filtered
-  // by viewport, and their centre can sit outside it while you are still inside
-  // the cell (which is exactly when the centre marker matters).
+  // Never hide a reported cell because the mesh missed it (e.g. coastlines),
+  // but keep the extra polygons inside the viewport.
   for (const [cell, props] of dataByCell) {
     if (seen.has(cell)) continue;
-    if (props.precision !== "low") {
-      const [lat, lng] = h3.cellToLatLng(cell);
-      if (meshBBox && (lng < meshBBox[0] || lng > meshBBox[2] || lat < meshBBox[1] || lat > meshBBox[3])) continue;
-    }
+    const [lat, lng] = h3.cellToLatLng(cell);
+    if (meshBBox && (lng < meshBBox[0] || lng > meshBBox[2] || lat < meshBBox[1] || lat > meshBBox[3])) continue;
     features.push(featureFor(cell, props));
   }
-  // Draw coarsened (low-precision) hexes underneath the precise ones: they can
-  // overlap the same parent area, and the fine cells are the more useful signal.
-  features.sort(
-    (a, b) =>
-      (a.properties.precision === "low" ? 0 : 1) -
-      (b.properties.precision === "low" ? 0 : 1)
-  );
-
   map.getSource("hexes").setData({ type: "FeatureCollection", features });
   updateStatus(features.length);
 }
@@ -299,20 +267,14 @@ function addLayers() {
         GREY,
       ],
       "fill-opacity": [
-        "case",
-        // Inside a coarsened cell (20 km) at high zoom the fill becomes a
-        // full-screen tint, so drop it and let the centre marker speak instead.
-        ["all", ["==", ["get", "precision"], "low"], [">=", ["zoom"], 12]], 0,
-        [
-          "match", ["get", "status"],
-          "detected_corroborated", 0.55,
-          "detected_single", 0.10,
-          "clear_multi", 0.50,
-          "clear_single", 0.10,
-          // no_data: visible enough to read as a mesh, light enough not to
-          // drown the red/green signal or hide basemap labels.
-          0.28,
-        ],
+        "match", ["get", "status"],
+        "detected_corroborated", 0.55,
+        "detected_single", 0.10,
+        "clear_multi", 0.50,
+        "clear_single", 0.10,
+        // no_data: visible enough to read as a mesh, light enough not to
+        // drown the red/green signal or hide basemap labels.
+        0.28,
       ],
     },
   });
@@ -341,27 +303,6 @@ function addLayers() {
     },
   });
 
-  // Marker for coarsened cells: once you are inside one, the hex boundary is
-  // off-screen, so show a dot at its centre instead of tinting the viewport.
-  map.addLayer({
-    id: "hex-centre",
-    type: "circle",
-    source: "hexes",
-    filter: ["==", ["get", "precision"], "low"],
-    paint: {
-      "circle-color": [
-        "match", ["get", "status"],
-        "detected_corroborated", RED,
-        "detected_single", RED,
-        GREEN,
-      ],
-      "circle-radius": ["interpolate", ["linear"], ["zoom"], 11, 5, 14, 8],
-      "circle-stroke-color": "#ffffff",
-      "circle-stroke-width": 1.5,
-      "circle-opacity": ["interpolate", ["linear"], ["zoom"], 11, 0, 12, 1],
-    },
-  });
-
   const popup = new maplibregl.Popup({ closeButton: true, maxWidth: "300px" });
   map.on("click", "hex-fill", (e) => {
     const p = e.features[0].properties;
@@ -374,11 +315,7 @@ function addLayers() {
         `detections: ${p.detection_count} · detecting devices: ${p.detection_device_count}<br>` +
         `day: ${p.day}` +
         (p.last_ts ? `<br>last report: ${new Date(p.last_ts).toLocaleString()}` : "");
-      if (p.confidence === "single") {
-        html += "<br><em>Single device — not corroborated.";
-        if (p.precision === "low") html += " Location coarsened to the parent cell.";
-        html += "</em>";
-      }
+      if (p.confidence === "single") html += "<br><em>Single device — not corroborated.</em>";
     }
     html += `<br><span class="mono">${p.h3} · r${p.res}</span>`;
     popup.setLngLat(e.lngLat).setHTML(html).addTo(map);

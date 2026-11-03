@@ -46,11 +46,10 @@ Aggregation and detection-folding run **before** pruning, so nothing is lost whe
 - Resolution follows zoom (table above) and never goes finer than r6; if a viewport would
   exceed 8,000 cells the UI steps down a level automatically.
 - Reported cells that fall outside the simplified coastline are still drawn.
-- **Lone-device cells are coarsened.** A cell backed by one device is published one
-  resolution up (r6 → r5, ~7.4 km → ~20 km) and marked `precision: "low"`, so a single
-  contributor's location is never exposed at the requested precision. Merging never
-  upgrades status: two lone sensors in different cells still read *unconfirmed*.
-  Disable with `RAYMAP_LONE_RES=6`.
+- **r6 (7.4 km) is the finest cell published.** Coordinates are discarded at ingest and
+  the zoom ladder never goes below r6, so the location floor is one neighbourhood-sized
+  cell. A single-device cell (hollow marker) is identifiable to that ~36 km² area — an
+  accepted trade-off for the map's usefulness.
 - **Search** (top bar): a ZIP code, `ZIP+4`, `town, ST`, or a bare town name flies the map to
   that place. Lookup is a vendored Census gazetteer (`ui/data/places.json.gz`, ~32k places and
   ~34k ZIPs) so queries never leave the browser — no geocoding service, no leaked IPs.
@@ -154,7 +153,6 @@ after a retraction.
 | `RAYMAP_RAW_RETAIN_HOURS` | `72` | raw report retention |
 | `RAYMAP_CELL_RETAIN_DAYS` | `90` | daily-cell retention |
 | `RAYMAP_QUOTA_RECORDS_HOUR` | `600` | per-device ingest quota |
-| `RAYMAP_LONE_RES` | `5` | resolution lone-device cells are published at |
 | `RAYMAP_HEX_RES` | `6` | default resolution when a request omits `res` |
 | `RAYMAP_POW_REQUIRED` | `1` | disable proof of work (local only) |
 | `RAYMAP_ADMIN_TOKEN` | *(unset)* | allow remote `/internal/*`; sent as `X-Raymap-Admin` |
