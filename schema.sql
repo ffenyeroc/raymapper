@@ -137,3 +137,14 @@ BEGIN
     DELETE FROM daily_cells WHERE day < (now() - make_interval(days => p_retain_days))::date;
 END;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Abuse control: devices the operator has banned (checked at ingest).
+-- A banned device can mint a new id, but loses its report history and has to
+-- pay proof-of-work again.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS blocked_devices (
+    device_hash text PRIMARY KEY,
+    reason      text,
+    blocked_at  timestamptz NOT NULL DEFAULT now()
+);

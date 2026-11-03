@@ -34,12 +34,94 @@ import re
 import subprocess
 import sys
 import time
+import uuid
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
 DEVICE_CONFIG = "/data/rayhunter-data/config.toml"
 DEVICE_QMDL = "/data/rayhunter-data/qmdl"
+
+
+# --------------------------------------------------------------------------
+# Privacy helpers
+# --------------------------------------------------------------------------
+def _device_id_path() -> Path:
+    base = os.environ.get("RAYMAP_STATE_DIR")
+    if base:
+        return Path(base) / "device_id"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "raymap" / "device_id"
+    return Path.home() / ".raymap" / "device_id"
+
+
+def device_hash_for_install() -> str:
+    """Stable pseudonym for this install.
+
+    A random UUID is generated once and only its hash is sent. The ADB serial is
+    used locally to pick the device and is never hashed or transmitted.
+    """
+    path = _device_id_path()
+    raw = path.read_text().strip() if path.exists() else ""
+    if not raw:
+        raw = str(uuid.uuid4())
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(raw + "\n")
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
+def clamp_ts(device_ts: Any, now: int, tolerance: int = 3600) -> int:
+    """Trust the device clock only when it agrees with ours (within 1 hour)."""
+    try:
+        value = int(float(device_ts))
+    except (TypeError, ValueError):
+        return now
+    return value if abs(value - now) <= tolerance else now
+
+
+def redact(record: Dict[str, Any]) -> Dict[str, Any]:
+    """Copy of a record with coordinates removed (for logs)."""
+    out = dict(record)
+    if out.get("lat") is not None:
+        out["lat"] = "<redacted>"
+    if out.get("lon") is not None:
+        out["lon"] = "<redacted>"
+    return out
+
+
+# --------------------------------------------------------------------------
+# Proof of work — keep in sync with raymap-map/app_api.py pow_verify()
+# --------------------------------------------------------------------------
+POW_BASE_BITS = 12
+POW_BUCKET_S = 300
+
+
+def _leading_zero_bits(digest: bytes) -> int:
+    bits = 0
+    for byte in digest:
+        if byte == 0:
+            bits += 8
+            continue
+        bits += 8 - byte.bit_length()
+        break
+    return bits
+
+
+def solve_pow(raw_body: bytes, device_hash: str, n_records: int) -> str:
+    bits = POW_BASE_BITS + (max(1, n_records) - 1).bit_length()
+    digest = hashlib.sha256(raw_body).hexdigest()
+    bucket = int(time.time()) // POW_BUCKET_S
+    prefix = f"{device_hash}|{bucket}|{digest}|"
+    nonce = 0
+    while True:
+        if _leading_zero_bits(hashlib.sha256((prefix + str(nonce)).encode()).digest()) >= bits:
+            return f"{bits}:{nonce}"
+        nonce += 1
 
 
 # --------------------------------------------------------------------------
@@ -203,7 +285,8 @@ def build_records(
     """Compose a single status record for the device's current state.
     Coordinates resolve in priority: device GPS fix > --lat/--lon override >
     fixed coords from config. Returns None if no coordinates are available."""
-    device_hash = hashlib.sha256(serial.encode()).hexdigest()[:16]
+    # Pseudonym is per-install, never derived from the hardware serial.
+    device_hash = device_hash_for_install()
 
     # Coordinates: prefer a real GPS fix, else override, else fixed config.
     lat, lon, gps_source = None, None, "none"
@@ -225,34 +308,26 @@ def build_records(
     epoch, analysis = latest_analysis(serial)
     det = extract_detection(analysis)
 
-    ts = int(time.time())
+    now = int(time.time())
+    ts = now
     if gps and gps.get("system_time"):
-        ts = int(gps["system_time"])
+        # Unsynced device clocks would land outside the retention window.
+        ts = clamp_ts(gps["system_time"], now)
 
     # If we have no usable coordinates, there's nothing to place on the map —
     # skip so we never insert coordinate-less rows (which break aggregation).
     if lat is None or lon is None:
         return None
 
+    # Send only what ingest stores: no serial, config, or session metadata.
     record = {
         "device_hash": device_hash,
         "ts": ts,
         "lat": lat,
         "lon": lon,
-        "gps_source": gps_source,
         "rssi_dbm": None,          # not exposed in the analysis NDJSON
         "detection": det["detection"],
         "network": None,
-        # Non-schema summary fields (ignored by ingest insert).
-        "session": epoch,
-        "session_messages": len(analysis)
-        - (1 if analysis and "analyzers" in analysis[0] else 0),
-        "session_events": det["event_count"],
-        "config": {
-            "device": config.get("device"),
-            "gps_mode": config.get("gps_mode"),
-            "rayhunter_port": config.get("port"),
-        },
     }
     return {"device": device_hash, "count": 1, "records": [record]}
 
@@ -263,7 +338,11 @@ def post_batch(endpoint: str, batch: Dict[str, Any]) -> bool:
         resp = requests.post(
             endpoint,
             data=payload,
-            headers={"Content-Type": "application/json", "Content-Encoding": "gzip"},
+            headers={
+                "Content-Type": "application/json",
+                "Content-Encoding": "gzip",
+                "X-Raymap-Pow": solve_pow(payload, batch["device"], len(batch["records"])),
+            },
             timeout=15,
         )
         ok = resp.status_code == 200
@@ -291,6 +370,8 @@ def main() -> None:
         "--once", action="store_true", help="pull current status once and exit (default)"
     )
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--show-coords", action="store_true",
+                        help="print coordinates in logs (off by default)")
     parser.add_argument("--serial", default=None)
     parser.add_argument("--lat", type=float, default=None,
                         help="fixed latitude used if the device has no GPS fix")
@@ -322,13 +403,14 @@ def main() -> None:
             print(f"[{time.strftime('%H:%M:%S')}] no coordinates available — skipping post")
             return
         rec = batch["records"][0]
+        # Coordinates are never printed by default.
         print(
-            f"[{time.strftime('%H:%M:%S')}] session={rec.get('session')} "
-            f"lat={rec.get('lat')} lon={rec.get('lon')} "
-            f"detection={rec.get('detection')} events={rec.get('session_events')}"
+            f"[{time.strftime('%H:%M:%S')}] detection={rec.get('detection')} "
+            f"ts={rec.get('ts')} has_coords={rec.get('lat') is not None}"
         )
         if args.dry_run:
-            print("--dry-run: would post ->", json.dumps(rec)[:300])
+            shown = rec if args.show_coords else redact(rec)
+            print("--dry-run: would post ->", json.dumps(shown)[:300])
         else:
             print("posted:", "OK" if post_batch(args.endpoint, batch) else "FAILED")
 

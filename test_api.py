@@ -63,3 +63,138 @@ class TestValidateRecord(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# --- Proof of work / ingest limits (added with local-hosting hardening) ------
+import gzip  # noqa: E402
+import hashlib  # noqa: E402
+import time  # noqa: E402
+import zlib  # noqa: E402
+
+
+def _solve(body: bytes, device: str, n: int, now: float) -> str:
+    """Client-side solver, mirrored here so the server rule is exercised."""
+    bits = app_api.target_bits(n)
+    digest = hashlib.sha256(body).hexdigest()
+    bucket = int(now) // app_api.POW_BUCKET_S
+    prefix = f"{device}|{bucket}|{digest}|"
+    nonce = 0
+    while True:
+        if app_api.leading_zero_bits(hashlib.sha256((prefix + str(nonce)).encode()).digest()) >= bits:
+            return f"{bits}:{nonce}"
+        nonce += 1
+
+
+class TestPowDifficulty(unittest.TestCase):
+    def test_scales_with_record_count(self):
+        self.assertEqual(app_api.target_bits(1), 12)
+        self.assertEqual(app_api.target_bits(2), 13)
+        self.assertEqual(app_api.target_bits(12), 16)
+        self.assertEqual(app_api.target_bits(500), 21)
+
+    def test_monotonic(self):
+        bits = [app_api.target_bits(n) for n in range(1, 600)]
+        self.assertEqual(bits, sorted(bits))
+
+    def test_leading_zero_bits(self):
+        self.assertEqual(app_api.leading_zero_bits(b"\x00\x00"), 16)
+        self.assertEqual(app_api.leading_zero_bits(b"\x00\x01"), 15)
+        self.assertEqual(app_api.leading_zero_bits(b"\x80"), 0)
+
+
+class TestPowVerify(unittest.TestCase):
+    BODY = b'{"records":[{"ts":1},{"ts":2}]}'
+
+    def setUp(self):
+        self._saved = app_api.POW_REQUIRED
+        app_api.POW_REQUIRED = True
+
+    def tearDown(self):
+        app_api.POW_REQUIRED = self._saved
+
+    def test_accepts_valid_header(self):
+        now = 1_700_000_000.0
+        header = _solve(self.BODY, "dev1", 2, now)
+        ok, reason, required = app_api.pow_verify(self.BODY, "dev1", header, 2, now)
+        self.assertTrue(ok, reason)
+        self.assertEqual(required, 13)
+
+    def test_tolerates_previous_bucket(self):
+        # Solve exactly on a bucket boundary, then verify one bucket later:
+        # the server accepts the current and previous bucket (±5 min skew).
+        t0 = 1_700_000_400.0  # divisible by POW_BUCKET_S
+        header = _solve(self.BODY, "dev1", 2, t0)
+        ok, reason, _ = app_api.pow_verify(self.BODY, "dev1", header, 2, t0 + 300)
+        self.assertTrue(ok, reason)
+
+    def test_rejects_missing_header(self):
+        ok, reason, required = app_api.pow_verify(self.BODY, "dev1", None, 2, 1_700_000_000.0)
+        self.assertFalse(ok)
+        self.assertIn("missing", reason)
+        self.assertEqual(required, 13)
+
+    def test_rejects_insufficient_bits(self):
+        ok, reason, required = app_api.pow_verify(self.BODY, "dev1", "12:0", 2, 1_700_000_000.0)
+        self.assertFalse(ok)
+        self.assertIn("insufficient", reason)
+
+    def test_rejects_wrong_device(self):
+        now = 1_700_000_000.0
+        header = _solve(self.BODY, "dev1", 2, now)
+        ok, _, _ = app_api.pow_verify(self.BODY, "other-device", header, 2, now)
+        self.assertFalse(ok)
+
+    def test_rejects_tampered_body(self):
+        now = 1_700_000_000.0
+        header = _solve(self.BODY, "dev1", 2, now)
+        ok, _, _ = app_api.pow_verify(self.BODY + b" ", "dev1", header, 2, now)
+        self.assertFalse(ok)
+
+    def test_disabled_flag_skips_check(self):
+        app_api.POW_REQUIRED = False
+        ok, _, _ = app_api.pow_verify(self.BODY, "dev1", None, 2, 1_700_000_000.0)
+        self.assertTrue(ok)
+
+
+class TestDecompressCap(unittest.TestCase):
+    def test_inflates(self):
+        self.assertEqual(app_api.decompress_capped(gzip.compress(b"hello")), b"hello")
+
+    def test_rejects_gzip_bomb(self):
+        bomb = gzip.compress(b"\x00" * 1_000_000)
+        with self.assertRaises(ValueError):
+            app_api.decompress_capped(bomb, limit=1024)
+
+    def test_rejects_non_gzip(self):
+        with self.assertRaises((zlib.error, ValueError, OSError)):
+            app_api.decompress_capped(b"not gzip")
+
+
+class TestLimits(unittest.TestCase):
+    def test_limits_are_sane(self):
+        self.assertLessEqual(app_api.MAX_DECOMPRESSED_BYTES, 16 * 1024 * 1024)
+        self.assertLessEqual(app_api.MAX_BODY_BYTES, app_api.MAX_DECOMPRESSED_BYTES)
+        self.assertGreaterEqual(app_api.MAX_RECORDS, 10)
+        self.assertGreater(app_api.QUOTA_RECORDS_HOUR, 60)
+
+
+class TestPowBindsRawBody(unittest.TestCase):
+    """The client hashes the bytes it sends (possibly gzipped), so the server
+    must verify against the raw request body, not the decompressed one."""
+
+    def setUp(self):
+        self._saved = app_api.POW_REQUIRED
+        app_api.POW_REQUIRED = True
+
+    def tearDown(self):
+        app_api.POW_REQUIRED = self._saved
+
+    def test_raw_body_verifies_and_decompressed_does_not(self):
+        plain = b'{"records":[{"ts":1}]}'
+        packed = gzip.compress(plain)
+        now = 1_700_000_000.0
+        header = _solve(packed, "dev1", 1, now)
+        ok_raw, reason, _ = app_api.pow_verify(packed, "dev1", header, 1, now)
+        ok_plain, _, _ = app_api.pow_verify(plain, "dev1", header, 1, now)
+        self.assertTrue(ok_raw, reason)
+        self.assertFalse(ok_plain)
