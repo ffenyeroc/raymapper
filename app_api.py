@@ -42,14 +42,14 @@ DATABASE_URL = os.environ.get(
     "DATABASE_URL", "postgresql://raymap:raymap@127.0.0.1:5433/raymap"
 )
 
-# Privacy knob: H3 resolution band. r8 is the finest allowed (0.74 km2, ~1.06 km
-# across) — coarser than the original 1 km jitter. r3 is the coarsest (12,393 km2,
-# ~138 km) so one hex covers a small state.
+# Stored per report: r7 is the detection-archive key, r8 the original floor.
+HEX_RESOLUTIONS = tuple(range(3, 9))
+# Served/displayed band. The map's minimum cell size is r6 (~7.4 km across), so
+# the API refuses anything finer even though r7/r8 remain stored.
 HEX_RES_MIN = 3
-HEX_RES_MAX = 8
-HEX_RESOLUTIONS = tuple(range(HEX_RES_MIN, HEX_RES_MAX + 1))
+HEX_RES_MAX = 6
 DEFAULT_RES = max(
-    HEX_RES_MIN, min(HEX_RES_MAX, int(os.environ.get("RAYMAP_HEX_RES", "7")))
+    HEX_RES_MIN, min(HEX_RES_MAX, int(os.environ.get("RAYMAP_HEX_RES", "6")))
 )
 
 MAX_DAYS = 90            # /geojson lookback bound (also presence retention)

@@ -8,7 +8,8 @@
  *   no_data                grey         no reports here — NOT evidence of safety
  *
  * The mesh covers land at the current resolution; the API only returns cells
- * that have reports. Resolution follows zoom (r3 national .. r8 street).
+ * that have reports. Resolution follows zoom (r3 national .. r6 street); r6 is
+ * the minimum cell size (~7.4 km) regardless of how far the user zooms in.
  */
 const API_BASE = window.RAYMAP_API || "";
 const geo = window.raymapGeo;
@@ -89,7 +90,7 @@ function isOnLand(lat, lng) {
 function buildMesh(res) {
   const box = clampToUS(geo.padBbox(currentBBox(), 0.2));
   if (box[0] >= box[2] || box[1] >= box[3]) return { cells: 0 };
-  // Estimate before polyfilling: a continental bbox at r8 would be millions.
+  // Estimate before polyfilling: a continental bbox at r6 is ~220k cells.
   if (estimateCells(box, res) > MAX_MESH_CELLS) return { tooMany: true };
   const cells = h3.polygonToCells([geo.bboxPolygonRing(box)], res, true);
   const onLand = cells.filter((c) => {
@@ -163,7 +164,7 @@ async function loadStates() {
 async function loadData(res) {
   const days = daysEl.value;
   const detOnly = detOnlyEl.checked ? "&include_detections_only=true" : "";
-  // Only the viewport is needed; at r8 the national set is tens of thousands
+  // Only the viewport is needed; at r6 the national set is tens of thousands
   // of cells. Pad so panning does not refetch immediately.
   const box = clampToUS(geo.padBbox(currentBBox(), 0.2));
   const url = `${API_BASE}/geojson?days=${days}&res=${res}&bbox=${box.join(",")}${detOnly}`;

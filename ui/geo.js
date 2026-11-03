@@ -7,16 +7,15 @@
   // Hex "across" in km, for the legend and the zoom ladder.
   const RES_KM = { 3: 138, 4: 52, 5: 20, 6: 7.4, 7: 2.8, 8: 1.06 };
   const RES_MIN = 3;
-  const RES_MAX = 8;
+  // Map floor: hexes never get smaller than r6 (~7.4 km across), at any zoom.
+  const RES_MAX = 6;
 
-  // ~25-40px hexes at every zoom; r8 is the privacy floor.
+  // ~25-40px hexes at every zoom; r6 is the minimum cell size.
   function resForZoom(z) {
     if (z <= 5) return 3;
     if (z <= 7) return 4;
     if (z <= 8) return 5;
-    if (z <= 10) return 6;
-    if (z <= 12) return 7;
-    return 8;
+    return 6;
   }
 
   function pointInRing(lng, lat, ring) {

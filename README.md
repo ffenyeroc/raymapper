@@ -11,9 +11,9 @@ over the US. Hosted locally for now: uvicorn + PostGIS in Docker Compose. The cl
 
 - **No precise coordinates are ever stored.** Each report is snapped to **H3 cells at
   resolutions 3–8** and the lat/lon are discarded.
-- The finest resolution is **r8** (0.74 km², ~1.06 km across) — still coarser than the
-  original 1 km collector jitter, and unlike geohash it is equal-area, so cells do not get
-  more revealing at high latitudes.
+- **The smallest cell the map shows is r6** (36 km², ~7.4 km across) at any zoom. r7 and r8
+  are still stored (r7 keys the detection archive) but the API clamps requests to r3–r6, so
+  the floor is enforced server-side, not just in the UI.
 - Device ids are random per install and hashed before upload. Single-device cells are shown
   but **marked unconfirmed** (hollow).
 - **Grey means “no reports here”, not “safe”.** The UI says so in the legend and the tooltip.
@@ -23,9 +23,9 @@ over the US. Hosted locally for now: uvicorn + PostGIS in Docker Compose. The cl
 | r3 | 12,393 km² | ~138 km | ≤ 5 (national — ~10 cells for a median state) |
 | r4 | 1,770 km² | ~52 km | 6–7 |
 | r5 | 253 km² | ~20 km | 8 |
-| r6 | 36 km² | ~7.4 km | 9–10 |
-| r7 | 5.2 km² | ~2.8 km | 11–12 |
-| r8 | 0.74 km² | ~1.06 km | ≥ 13 (finest allowed) |
+| r6 | 36 km² | ~7.4 km | ≥ 9 — **smallest cell shown** |
+| r7 | 5.2 km² | ~2.8 km | stored only (detection-archive key) |
+| r8 | 0.74 km² | ~1.06 km | stored only |
 
 ## Retention
 
@@ -43,8 +43,8 @@ Aggregation and detection-folding run **before** pruning, so nothing is lost whe
 - The UI generates the rest of the mesh itself: `h3.polygonToCells()` over the padded
   viewport, clipped to the vendored US boundary with a small point-in-polygon test, then
   merged with the API data by H3 index. Cells with no reports render grey.
-- Resolution follows zoom (table above); if a viewport would exceed 8,000 cells the UI steps
-  down a level automatically.
+- Resolution follows zoom (table above) and never goes finer than r6; if a viewport would
+  exceed 8,000 cells the UI steps down a level automatically.
 - Reported cells that fall outside the simplified coastline are still drawn.
 
 ## Local development
@@ -65,7 +65,7 @@ docker compose down -v && docker compose up -d   # reset: the schema is H3-based
 | Endpoint | Description |
 |---|---|
 | `POST /ingest` | Collector batch: `{device, count, records:[...]}`, optional gzip, **`X-Raymap-Pow` required**. Returns `{inserted, rejected, first_error?}`. |
-| `GET /geojson?days=7&res=7&bbox=w,s,e,n` | Aggregated hex cells. `days` bounded 1–90, `res` bounded **3–8**, `bbox` optional (viewport filter). Features carry `h3`, `res`, `status`, `confidence`, counts and `last_ts`; the response carries `attribution` (CC BY 4.0). |
+| `GET /geojson?days=7&res=6&bbox=w,s,e,n` | Aggregated hex cells. `days` bounded 1–90, `res` clamped to **3–6** (`res=7|8` returns r6), `bbox` optional (viewport filter). Features carry `h3`, `res`, `status`, `confidence`, counts and `last_ts`; the response carries `attribution` (CC BY 4.0). |
 | `POST /internal/refresh?days=30` | Recompute `daily_cells` (all resolutions) and fold `detection_months`. |
 | `POST /internal/maintain` | refresh + fold + prune, in that order (runs automatically every `RAYMAP_MAINTAIN_INTERVAL_S`). |
 | `GET /healthz` | Liveness plus a database check. |
@@ -100,7 +100,7 @@ docker compose down -v && docker compose up -d   # reset: the schema is H3-based
 | `RAYMAP_RAW_RETAIN_HOURS` | `72` | raw report retention |
 | `RAYMAP_CELL_RETAIN_DAYS` | `90` | daily-cell retention |
 | `RAYMAP_QUOTA_RECORDS_HOUR` | `600` | per-device ingest quota |
-| `RAYMAP_HEX_RES` | `7` | default resolution when a request omits `res` |
+| `RAYMAP_HEX_RES` | `6` | default resolution when a request omits `res` |
 | `RAYMAP_POW_REQUIRED` | `1` | disable proof of work (local only) |
 
 Ban a device: `INSERT INTO blocked_devices (device_hash, reason) VALUES ('<hash>', 'poisoning');`

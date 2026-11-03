@@ -9,18 +9,21 @@ const square = (w, s, e, n) => ({
   geometry: { type: "Polygon", coordinates: [[[w, s], [e, s], [e, n], [w, n], [w, s]]] },
 });
 
-test("resForZoom follows the r3..r8 ladder", () => {
+test("resForZoom follows the r3..r6 ladder", () => {
   assert.equal(geo.resForZoom(4), 3);
   assert.equal(geo.resForZoom(5), 3);
   assert.equal(geo.resForZoom(6), 4);
   assert.equal(geo.resForZoom(7), 4);
   assert.equal(geo.resForZoom(8), 5);
   assert.equal(geo.resForZoom(9), 6);
-  assert.equal(geo.resForZoom(10), 6);
-  assert.equal(geo.resForZoom(11), 7);
-  assert.equal(geo.resForZoom(12), 7);
-  assert.equal(geo.resForZoom(13), 8);
-  assert.equal(geo.resForZoom(20), 8);
+  assert.equal(geo.resForZoom(13), 6);
+  assert.equal(geo.resForZoom(20), 6);
+});
+
+test("no zoom yields a cell smaller than r6 (~7.4 km)", () => {
+  for (let z = 0; z < 25; z++) {
+    assert.ok(geo.resForZoom(z) <= 6, `zoom ${z} -> r${geo.resForZoom(z)}`);
+  }
 });
 
 test("res never leaves the privacy band", () => {

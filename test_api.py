@@ -57,10 +57,11 @@ class TestValidateRecord(unittest.TestCase):
         self.assertFalse(self.ok(["not", "a", "dict"]))
 
     def test_resolution_band_is_enforced(self):
-        # r8 is the finest allowed (privacy floor); r3 the coarsest.
+        # r6 is the smallest cell served (~7.4 km across); r3 the coarsest.
         self.assertEqual(app_api.clamp_res(2), 3)
-        self.assertEqual(app_api.clamp_res(9), 8)
-        self.assertEqual(app_api.clamp_res(15), 8)
+        self.assertEqual(app_api.clamp_res(7), 6)
+        self.assertEqual(app_api.clamp_res(9), 6)
+        self.assertEqual(app_api.clamp_res(15), 6)
         self.assertEqual(app_api.clamp_res(6), 6)
         self.assertEqual(app_api.clamp_res("junk"), app_api.DEFAULT_RES)
 
