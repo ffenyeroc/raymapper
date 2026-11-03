@@ -16,7 +16,8 @@ server_url = ""
 # How often to poll the hotspot's Rayhunter API over USB (seconds).
 poll_interval_s = 60
 
-# Maximum time between uploads to the map server (seconds).
+# Maximum time between uploads to the map server (seconds); 900 = 15 min.
+# upload_on_change = true still uploads immediately when a detection fires.
 upload_interval_s = 900
 
 # Upload immediately whenever the polled status changes.
