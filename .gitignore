@@ -1,0 +1,17 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Local state / identifiers (never publish)
+.device_id
+state.jsonl
+*.log
+.env
+.env.*
+
+# macOS
+.DS_Store

@@ -1,0 +1,40 @@
+# ==========================================================================
+# raymap-collector configuration
+#
+# Copy this file to config.toml and adjust as needed. `python3 -m tomllib` is
+# used (stdlib) so no extra parser dependency is required.
+# ==========================================================================
+
+# Where the collector POSTs gzipped batches. Leave empty to only log/queue
+# locally during development (nothing is sent).
+server_url = ""
+
+# Stable identifier for this hotspot+computer pair. If empty, a random id is
+# generated once and stored next to the config — only its hash is sent upstream.
+# device_id = ""
+
+# How often to poll the hotspot's Rayhunter API over USB (seconds).
+poll_interval_s = 60
+
+# Maximum time between uploads to the map server (seconds).
+upload_interval_s = 900
+
+# Upload immediately whenever the polled status changes.
+upload_on_change = true
+
+# Location source: "fixed" (coords below), "api" (read from the device), or
+# "disabled".
+gps_source = "fixed"
+gps_fixed_latitude = 37.7749
+gps_fixed_longitude = -122.4194
+
+# The Rayhunter daemon listens on port 8080 by default.
+rayhunter_port = 8080
+
+# Optional explicit host to talk to instead of USB discovery. Set to
+# "127.0.0.1" to test against the local mock_rayhunter.py.
+# rayhunter_host = ""
+
+# State and log files (resolved relative to this config file's directory).
+state_file = "state.jsonl"
+log_file = "raymap-collector.log"
