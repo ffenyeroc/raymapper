@@ -1,9 +1,18 @@
 raymap-map — third-party notices
 ================================
 
-MapLibre GL JS 3.6.2 (vendored as ui/vendor_maplibre-gl.js and .css)
+MapLibre GL JS 3.6.2 (ui/vendor_maplibre-gl.js, .css)
   Copyright (c) MapLibre contributors — BSD-3-Clause
   https://github.com/maplibre/maplibre-gl-js
+
+H3 4.5.0 (Python) and h3-js 4.5.0 (ui/vendor_h3-js.js)
+  Copyright (c) Uber Technologies, Inc. — Apache-2.0
+  https://github.com/uber/h3  https://github.com/uber/h3-js
+
+US state/land boundary (ui/data/us_states.geojson)
+  Derived from the U.S. Census Bureau 2023 Cartographic Boundary Files
+  (cb_2023_us_state_20m), simplified with mapshaper. U.S. Government work —
+  public domain.
 
 Basemap tiles and style ("liberty") are served by OpenFreeMap:
   OpenFreeMap — https://openfreemap.org

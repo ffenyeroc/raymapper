@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>raymap — crowdsourced detection map</title>
   <link href="style.css" rel="stylesheet" />
-  <!-- Vendored locally (no CDN dependency): https://unpkg.com/maplibre-gl@3.6.2 -->
+  <!-- Vendored locally (no CDN dependency): maplibre-gl 3.6.2, h3-js 4.5.0 -->
   <link href="vendor_maplibre-gl.css" rel="stylesheet" />
 </head>
 <body>
@@ -26,6 +26,7 @@
         Detections only
       </label>
       <button id="refresh">Refresh</button>
+      <span id="res-badge" class="badge">hex ≈ –</span>
       <span id="status" class="status"></span>
     </div>
   </header>
@@ -33,16 +34,20 @@
   <div id="map"></div>
 
   <div id="legend" class="legend">
-    <div><span class="swatch" data-s="detected_corroborated"></span> detection, 2+ devices</div>
-    <div><span class="swatch hollow" data-s="detected_single"></span> detection, 1 device <em>(unconfirmed)</em></div>
-    <div><span class="swatch" data-s="clear_multi"></span> no detection, 2+ devices</div>
-    <div><span class="swatch hollow" data-s="clear_single"></span> no detection, 1 device</div>
-    <div class="note">No marker = no reports in this window — not evidence of safety.</div>
+    <div><span class="swatch solid red"></span> detection, 2+ devices</div>
+    <div><span class="swatch hollow red"></span> detection, 1 device <em>(unconfirmed)</em></div>
+    <div><span class="swatch solid green"></span> no detection, 2+ devices</div>
+    <div><span class="swatch hollow green"></span> no detection, 1 device</div>
+    <div><span class="swatch solid grey"></span> no reports</div>
+    <div class="note">
+      Grey means nobody reported from that cell — <strong>not</strong> evidence of safety.
+      Hex size follows zoom (r3 ≈ 138 km → r8 ≈ 1 km).
+    </div>
   </div>
 
-  <div id="popup" class="popup" hidden></div>
-
   <script src="vendor_maplibre-gl.js"></script>
+  <script src="vendor_h3-js.js"></script>
+  <script src="geo.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

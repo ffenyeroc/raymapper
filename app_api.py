@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import h3
 import json
 import logging
 import os
@@ -41,12 +42,19 @@ DATABASE_URL = os.environ.get(
     "DATABASE_URL", "postgresql://raymap:raymap@127.0.0.1:5433/raymap"
 )
 
-# Privacy knob: geohash length. 6 ~= 1.2 km x 0.6 km (requirement: no more
-# accurate than ~1 km). 5 ~= 4.9 km, 7 ~= 153 m.
-CELL_PRECISION = max(4, min(8, int(os.environ.get("RAYMAP_CELL_PRECISION", "6"))))
+# Privacy knob: H3 resolution band. r8 is the finest allowed (0.74 km2, ~1.06 km
+# across) — coarser than the original 1 km jitter. r3 is the coarsest (12,393 km2,
+# ~138 km) so one hex covers a small state.
+HEX_RES_MIN = 3
+HEX_RES_MAX = 8
+HEX_RESOLUTIONS = tuple(range(HEX_RES_MIN, HEX_RES_MAX + 1))
+DEFAULT_RES = max(
+    HEX_RES_MIN, min(HEX_RES_MAX, int(os.environ.get("RAYMAP_HEX_RES", "7")))
+)
 
 MAX_DAYS = 90            # /geojson lookback bound (also presence retention)
 MAX_FEATURES = 20000     # response cap
+MAX_ROWS = 200000        # SQL safety cap before viewport filtering
 
 # Ingest limits (trust boundaries).
 MAX_BODY_BYTES = int(os.environ.get("RAYMAP_MAX_BODY_BYTES", 1_048_576))
@@ -77,6 +85,31 @@ def clamp_days(days: int) -> int:
     except (TypeError, ValueError):
         return 30
     return max(1, min(MAX_DAYS, days))
+
+
+def clamp_res(res: int) -> int:
+    """Bound resolution to the privacy band (r3 min, r8 max)."""
+    try:
+        res = int(res)
+    except (TypeError, ValueError):
+        return DEFAULT_RES
+    return max(HEX_RES_MIN, min(HEX_RES_MAX, res))
+
+
+def parse_bbox(value: Optional[str]) -> Optional[Tuple[float, float, float, float]]:
+    """Parse 'west,south,east,north' into a normalized tuple, or None."""
+    if not value:
+        return None
+    try:
+        w, s, e, n = (float(x) for x in value.split(","))
+    except (TypeError, ValueError):
+        return None
+    return (min(w, e), min(s, n), max(w, e), max(s, n))
+
+
+def h3_columns(lat: float, lng: float) -> Dict[str, str]:
+    """H3 index for every stored resolution (r3..r8)."""
+    return {f"h3_r{r}": h3.latlng_to_cell(lat, lng, r) for r in HEX_RESOLUTIONS}
 
 
 def classify(device_count: int, detection_device_count: int) -> Tuple[str, str]:
@@ -231,27 +264,26 @@ def _conn():
 # Ingest
 # ---------------------------------------------------------------------------
 INSERT_REPORT = """
-INSERT INTO reports (device_hash, ts, cell, rssi_dbm, detection, network)
-SELECT %s, to_timestamp(%s),
-       ST_GeoHash(ST_SetSRID(ST_MakePoint(%s, %s), 4326), %s),
-       %s, %s, %s
+INSERT INTO reports (device_hash, ts, h3_r3, h3_r4, h3_r5, h3_r6, h3_r7, h3_r8,
+                     rssi_dbm, detection, network)
+VALUES (%s, to_timestamp(%s), %s, %s, %s, %s, %s, %s, %s, %s, %s)
 ON CONFLICT (device_hash, ts) DO NOTHING
 """
 
 
 def _insert_batch(rows: List[Dict[str, Any]]) -> int:
+    """Insert validated rows; coordinates become H3 cells and are discarded."""
     inserted = 0
     with _conn() as conn:
         with conn.cursor() as cur:
             for r in rows:
+                cells = h3_columns(float(r["lat"]), float(r["lon"]))
                 cur.execute(
                     INSERT_REPORT,
                     (
                         r["device_hash"],
                         float(r["ts"]),
-                        float(r["lon"]),   # ST_MakePoint(x=lon, y=lat)
-                        float(r["lat"]),
-                        CELL_PRECISION,
+                        *(cells[f"h3_r{res}"] for res in HEX_RESOLUTIONS),
                         int(r["rssi_dbm"]) if r.get("rssi_dbm") is not None else None,
                         r.get("detection"),
                         r.get("network"),
@@ -358,20 +390,25 @@ async def ingest(request: Request) -> JSONResponse:
 # GeoJSON for the map
 # ---------------------------------------------------------------------------
 @app.get("/geojson")
-def geojson(days: int = 30, include_detections_only: bool = False) -> JSONResponse:
+def geojson(days: int = 30, res: int = DEFAULT_RES,
+            include_detections_only: bool = False,
+            bbox: Optional[str] = None) -> JSONResponse:
     days = clamp_days(days)
+    res = clamp_res(res)
+    box = parse_bbox(bbox)
     query = """
         SELECT day, cell, device_count, report_count,
-               detection_count, detection_device_count, last_ts,
-               ST_Y(ST_PointFromGeoHash(cell, 4326)) AS lat,
-               ST_X(ST_PointFromGeoHash(cell, 4326)) AS lon
+               detection_count, detection_device_count, last_ts
         FROM daily_cells
-        WHERE day >= (now() - make_interval(days => %s))::date
+        WHERE res = %s
+          AND day >= (now() - make_interval(days => %s))::date
     """
-    params: List[Any] = [days]
+    params: List[Any] = [res, days]
     if include_detections_only:
         query += " AND detection_count > 0"
-    query += " ORDER BY report_count DESC LIMIT " + str(MAX_FEATURES)
+    # H3 centroids are not available in SQL, so viewport filtering happens in
+    # Python: never truncate before filtering, cap the response afterwards.
+    query += " ORDER BY report_count DESC LIMIT " + str(MAX_ROWS)
 
     with _conn() as conn:
         with conn.cursor() as cur:
@@ -379,13 +416,19 @@ def geojson(days: int = 30, include_detections_only: bool = False) -> JSONRespon
             rows = cur.fetchall()
 
     features = []
-    for day, cell, dev, rep, det, det_dev, last_ts, lat, lon in rows:
+    for day, cell, dev, rep, det, det_dev, last_ts in rows:
+        lat, lng = h3.cell_to_latlng(cell)
+        if box and not (box[0] <= lng <= box[2] and box[1] <= lat <= box[3]):
+            continue
+        if len(features) >= MAX_FEATURES:
+            break
         status, confidence = classify(dev, det_dev)
         features.append(
             {
                 "type": "Feature",
                 "properties": {
-                    "cell": cell,
+                    "h3": cell,
+                    "res": res,
                     "day": str(day),
                     "device_count": dev,
                     "report_count": rep,
@@ -395,7 +438,7 @@ def geojson(days: int = 30, include_detections_only: bool = False) -> JSONRespon
                     "confidence": confidence,
                     "last_ts": last_ts.isoformat() if last_ts else None,
                 },
-                "geometry": {"type": "Point", "coordinates": [lon, lat]},
+                "geometry": {"type": "Point", "coordinates": [lng, lat]},
             }
         )
 
@@ -405,6 +448,7 @@ def geojson(days: int = 30, include_detections_only: bool = False) -> JSONRespon
             "attribution": ATTRIBUTION,
             "license": "CC BY 4.0",
             "days": days,
+            "res": res,
             "features": features,
         }
     )

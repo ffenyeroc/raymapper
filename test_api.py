@@ -56,9 +56,25 @@ class TestValidateRecord(unittest.TestCase):
         self.assertFalse(self.ok({"lat": 1, "lon": 1, "detection": 42}))
         self.assertFalse(self.ok(["not", "a", "dict"]))
 
-    def test_cell_precision_is_bounded(self):
-        self.assertGreaterEqual(app_api.CELL_PRECISION, 4)
-        self.assertLessEqual(app_api.CELL_PRECISION, 8)
+    def test_resolution_band_is_enforced(self):
+        # r8 is the finest allowed (privacy floor); r3 the coarsest.
+        self.assertEqual(app_api.clamp_res(2), 3)
+        self.assertEqual(app_api.clamp_res(9), 8)
+        self.assertEqual(app_api.clamp_res(15), 8)
+        self.assertEqual(app_api.clamp_res(6), 6)
+        self.assertEqual(app_api.clamp_res("junk"), app_api.DEFAULT_RES)
+
+
+class TestH3Columns(unittest.TestCase):
+    def test_parent_chain_is_consistent(self):
+        import h3 as h3lib
+        cells = app_api.h3_columns(33.749, -84.388)
+        self.assertEqual(set(cells), {f"h3_r{r}" for r in app_api.HEX_RESOLUTIONS})
+        self.assertEqual({len(v) for v in cells.values()}, {15})
+        for r in app_api.HEX_RESOLUTIONS[:-1]:
+            self.assertEqual(
+                h3lib.cell_to_parent(cells[f"h3_r{r + 1}"], r), cells[f"h3_r{r}"]
+            )
 
 
 if __name__ == "__main__":
@@ -198,3 +214,14 @@ class TestPowBindsRawBody(unittest.TestCase):
         ok_plain, _, _ = app_api.pow_verify(plain, "dev1", header, 1, now)
         self.assertTrue(ok_raw, reason)
         self.assertFalse(ok_plain)
+
+
+class TestBbox(unittest.TestCase):
+    def test_parses_and_normalizes(self):
+        self.assertEqual(app_api.parse_bbox("-85,30,-80,35"), (-85.0, 30.0, -80.0, 35.0))
+        self.assertEqual(app_api.parse_bbox("-80,35,-85,30"), (-85.0, 30.0, -80.0, 35.0))
+
+    def test_rejects_garbage(self):
+        self.assertIsNone(app_api.parse_bbox(None))
+        self.assertIsNone(app_api.parse_bbox(""))
+        self.assertIsNone(app_api.parse_bbox("a,b,c"))

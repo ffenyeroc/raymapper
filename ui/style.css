@@ -15,29 +15,31 @@ html, body { margin: 0; height: 100%; font-family: -apple-system, system-ui, san
 }
 .status { color: #9fe3a6; }
 .status.err { color: #ff9f9f; }
+.badge {
+  font-size: 12px; padding: 2px 8px; border-radius: 999px;
+  background: #2b3450; border: 1px solid #555; color: #cfd6e4;
+}
 
 #map { position: absolute; inset: 44px 0 0 0; }
 
 .legend {
   position: absolute; z-index: 10; left: 12px; bottom: 24px;
   background: rgba(255,255,255,0.94); padding: 8px 12px; border-radius: 8px;
-  font-size: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.3); max-width: 280px;
+  font-size: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.3); max-width: 320px;
 }
 .legend .swatch {
-  display: inline-block; width: 12px; height: 12px; border-radius: 50%;
-  margin-right: 6px; vertical-align: middle;
+  display: inline-block; width: 12px; height: 12px; margin-right: 6px;
+  vertical-align: middle; border-radius: 2px;
 }
-/* Solid = corroborated by 2+ devices; hollow = a single device (unconfirmed). */
-.swatch[data-s="detected_corroborated"] { background: #e0393e; }
-.swatch[data-s="clear_multi"]          { background: #2e9e4f; }
-.swatch[data-s="detected_single"]      { border: 2.5px solid #e0393e; background: transparent; }
-.swatch[data-s="clear_single"]         { border: 2.5px solid #2e9e4f; background: transparent; }
+/* solid = corroborated by 2+ devices; hollow = a single device (unconfirmed) */
+.swatch.solid.red   { background: #e0393e; }
+.swatch.solid.green { background: #2e9e4f; }
+.swatch.solid.grey  { background: #9aa3af; }
+.swatch.hollow.red  { border: 2.5px solid #e0393e; background: transparent; }
+.swatch.hollow.green{ border: 2.5px solid #2e9e4f; background: transparent; }
 .legend .note { margin-top: 6px; color: #444; font-style: italic; }
 .legend em { font-style: italic; }
 
-.popup {
-  position: absolute; z-index: 20; left: 16px; top: 60px;
-  background: #fff; border-radius: 8px; padding: 10px 12px;
-  font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); max-width: 300px;
-}
-.popup strong { display: block; margin-bottom: 4px; }
+.maplibregl-popup-content { font-size: 12px; line-height: 1.45; }
+.maplibregl-popup-content strong { display: block; margin-bottom: 4px; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #666; font-size: 11px; }
