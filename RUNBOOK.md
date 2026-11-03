@@ -151,6 +151,26 @@ Run monthly, or after a retraction. Served at `/data/history/`.
 ./.venv/bin/python seed.py --cluster --rows 20000 --days 3 --devices 200
 ```
 
+## Keep only real device data (destructive)
+
+After seeding, or when you want the map to show only your own sensor:
+
+```bash
+REAL=$(docker exec raymap_db psql -U raymap -d raymap -tAc \
+  "SELECT device_hash FROM reports GROUP BY 1 ORDER BY count(*) DESC LIMIT 1")
+docker exec raymap_db psql -U raymap -d raymap -c "BEGIN;
+  DELETE FROM reports WHERE device_hash <> '$REAL';
+  DELETE FROM daily_cells;          -- derived: rebuilt from reports below
+  DELETE FROM detection_months;     -- derived: monotonic fold, so drop it too
+COMMIT;"
+curl -X POST 'localhost:8000/internal/refresh?days=30'
+./.venv/bin/python scripts/export_history.py   # rewrites /data/history and drops stale files
+```
+
+`audit_log` is intentionally kept — it is the operator history, not report data.
+A lone remaining device will be published coarsened (r5, ~20 km), which is the
+privacy behaviour working as intended.
+
 ## Reset the dev database (destructive)
 
 ```bash

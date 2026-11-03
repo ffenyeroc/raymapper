@@ -66,6 +66,10 @@ def main() -> int:
         )
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+    # Remove stale month files: after a retraction or a database cleanup an old
+    # snapshot must not keep serving data that no longer exists.
+    for old in OUT_DIR.glob("*.ndjson.gz"):
+        old.unlink()
     index = []
     for month in sorted(by_month):
         cells = sorted(by_month[month], key=lambda c: c["detection_count"], reverse=True)
