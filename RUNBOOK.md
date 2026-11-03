@@ -34,6 +34,19 @@ exit status; a negative value such as `-15` just means it was stopped by a signa
 The API binds **127.0.0.1** by default, which keeps `/internal/*` loopback-only. To serve the
 map to your LAN, set `RAYMAP_BIND=0.0.0.0` **and** `RAYMAP_ADMIN_TOKEN` in `.env`.
 
+### Log rotation
+
+launchd appends to `~/Library/Logs/raymap-*.log` forever. Install the supplied
+`newsyslog` rule so they cap at 10 MB (API) / 1 MB (backup) and keep 7 compressed
+generations:
+
+```bash
+sudo cp launchd/raymap.newsyslog.conf /etc/newsyslog.d/raymap.conf
+```
+
+Without it, truncate by hand: `: > ~/Library/Logs/raymap-api.log` (the running process
+keeps its file descriptor, so the file regrows from empty).
+
 ## Configuration
 
 `cp .env.example .env`, then edit. `scripts/run_api.sh` sources it on start; the app itself
