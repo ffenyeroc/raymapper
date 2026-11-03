@@ -31,7 +31,7 @@ jobs:
         with:
           node-version: "22"
       - name: UI geometry tests
-        run: node --test ui/test_geo.js
+        run: node --test ui/test_geo.js ui/test_search.js
 
   secret-scan:
     name: gitleaks secret scan
@@ -39,11 +39,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_ENABLE_COMMENT_PR: true
+          fetch-depth: 0 # full history, not just the pushed range
+      # Not gitleaks-action: on a branch's first push it computes `root^..HEAD`,
+      # which is not a valid revision, so the first commit of any new branch fails.
+      - name: Scan every commit
+        run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz \
+            | tar -xz -O gitleaks > /tmp/gitleaks
+          chmod +x /tmp/gitleaks
+          /tmp/gitleaks detect --no-banner --redact --verbose
 
   dependencies:
     name: Dependency audit (advisory)
