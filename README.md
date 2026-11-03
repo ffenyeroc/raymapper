@@ -23,6 +23,7 @@ internet connection.
 | `discovery.py` | Finds the USB-tethered hotspot's gateway and confirms Rayhunter on `:8080`. |
 | `rayhunter.py` | Thin client for the device's local REST API (`/api/gps`, `/api/time`, `/api/config`, …). |
 | `uploader.py` | On-disk queue + gzipped JSON upload with retry/backoff. |
+| `pow.py` | Proof-of-work header (`X-Raymap-Pow`) bound to the device and payload. |
 | `config.py` / `config.toml` | Config loading (stdlib `tomllib`) + editable settings. |
 | `mock_rayhunter.py` | Fake of the device API for testing without hardware. |
 | `mock_map_server.py` | Receiver that prints/records uploaded batches — verifies the upload half. |
@@ -40,7 +41,8 @@ internet connection.
 ```
 
 Covers `should_upload` (interval vs. change, and retry-after-failure timing),
-`status_key` (timestamp is ignored), and the device-id hash.
+`status_key` (timestamp is ignored), the device-id hash, and proof of work
+(difficulty scaling, payload binding).
 
 ---
 
@@ -106,6 +108,9 @@ populated once the corresponding Rayhunter endpoints are confirmed.
   small, gzipped batches go upstream over the host's internet.
 - **Bandwidth discipline**: poll locally every 60s, upload at most every 900s
   (or on change), deltas/gzip so idle periods cost ~nothing.
+- **Abuse resistance**: every upload carries a proof-of-work header sized to the
+  record count (`12 bits + 1 per doubling`, bound to the device and payload), so
+  flooding the map costs CPU, not just bandwidth.
 - **Resilience**: records are queued to `state.jsonl` on disk; if the server is
   unreachable the collector backs off (up to 5 min) and never loses the latest
   point. Restart-safe and idempotent.

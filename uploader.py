@@ -13,6 +13,8 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
+from pow import solve_header
+
 log = logging.getLogger("raymap")
 
 
@@ -61,8 +63,8 @@ class Uploader:
 
     # -- Upload logic ------------------------------------------------------
 
-    def _payload(self) -> Optional[bytes]:
-        """Read queue, gzip a batch, return payload bytes, or None if empty."""
+    def _payload(self) -> Optional[tuple[bytes, int]]:
+        """Read queue, gzip a batch. Returns (payload_bytes, record_count)."""
         records = self._read_queue()
         if not records:
             return None
@@ -71,13 +73,15 @@ class Uploader:
             "count": len(records),
             "records": records,
         }
-        return gzip.compress(json.dumps(batch, separators=(",", ":")).encode())
+        payload = gzip.compress(json.dumps(batch, separators=(",", ":")).encode())
+        return payload, len(records)
 
     def upload(self) -> bool:
         """Try to upload the queued records. Returns True on success."""
-        payload = self._payload()
-        if payload is None:
+        packed = self._payload()
+        if packed is None:
             return True  # nothing to upload
+        payload, n_records = packed
 
         if not self.server_url:
             # No server configured — treat dev mode as a sink: accept and
@@ -94,6 +98,8 @@ class Uploader:
                 headers={
                     "Content-Type": "application/json",
                     "Content-Encoding": "gzip",
+                    # Binds the work to this exact payload and device; see pow.py.
+                    "X-Raymap-Pow": solve_header(payload, self.device_id_hash, n_records),
                 },
                 timeout=15,
             )
@@ -102,11 +108,16 @@ class Uploader:
                 self.state_file.unlink(missing_ok=True)
                 log.info(
                     "uploaded %d record(s) (%.1f KB gzipped)",
-                    len(json.loads(gzip.decompress(payload))["records"]),
+                    n_records,
                     len(payload) / 1024,
                 )
                 return True
             else:
+                if resp.status_code == 428:
+                    log.warning(
+                        "server requested more proof-of-work (Retry-With-Bits=%s)",
+                        resp.headers.get("Retry-With-Bits"),
+                    )
                 log.warning(
                     "upload returned %s, will retry (backoff=%ds)",
                     resp.status_code,
