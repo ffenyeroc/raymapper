@@ -115,6 +115,28 @@ curl localhost:8000/internal/audit?limit=20
 
 From another host, add `-H "X-Raymap-Admin: $RAYMAP_ADMIN_TOKEN"`.
 
+## Device (Orbic RC400L + Rayhunter)
+
+Rayhunter is installed on the device and its daemon listens on the device's own 127.0.0.1:8080.
+Reach it from the Mac with an ADB forward (no HoRNDIS needed):
+
+```bash
+adb devices                                  # 764fa857 ... device
+adb forward tcp:8080 tcp:8080
+curl -s localhost:8080/api/time              # daemon is alive
+
+# ADB path: detections + GPS straight from the device files, 15-minute cadence
+./.venv/bin/python adb_reader.py --once
+./.venv/bin/python adb_reader.py --interval 900
+```
+
+- The device is configured `gps_mode = 1` (fixed) at its own coordinates; `/api/gps` returns them.
+- Uploads are proof-of-work signed and land on the map as `clear_single` cells until an
+  analyzer event fires — green means "no detection reported", not "no catcher".
+- Coarsening applies automatically: the device's cell is published at r5, not r6.
+- Raw `qmdl` captures accumulate on the device (~47 MB after 33 sessions of 214 MB). Delete
+  old ones periodically — they contain identifiers we deliberately never upload.
+
 ## History export
 
 ```bash

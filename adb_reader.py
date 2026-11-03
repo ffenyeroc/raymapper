@@ -18,7 +18,7 @@ coordinates, so nothing precise is stored.
 
 Usage:
     python adb_reader.py --once                 # pull current state + post
-    python adb_reader.py --interval 300         # loop every 5 min
+    python adb_reader.py --interval 900         # loop every 15 min (standard cadence)
     python adb_reader.py --dry-run              # show what would be posted
     python adb_reader.py --endpoint http://host:8000/ingest
 """
@@ -364,7 +364,8 @@ def main() -> None:
         default=os.environ.get("RAYMAP_INGEST", "http://localhost:8000/ingest"),
     )
     parser.add_argument(
-        "--interval", type=int, default=0, help="loop every N seconds (0 = run once)"
+        "--interval", type=int, default=0,
+        help="loop every N seconds (0 = run once); the deployment uses 900 (15 min)"
     )
     parser.add_argument(
         "--once", action="store_true", help="pull current status once and exit (default)"

@@ -79,6 +79,11 @@ CELL_RETAIN_DAYS = int(os.environ.get("RAYMAP_CELL_RETAIN_DAYS", 90))
 REFRESH_LOOKBACK_DAYS = int(os.environ.get("RAYMAP_REFRESH_LOOKBACK_DAYS", 30))
 MAINTAIN_INTERVAL_S = int(os.environ.get("RAYMAP_MAINTAIN_INTERVAL_S", 300))
 
+# Privacy: single-device cells are published at this (coarser) resolution so one
+# contributor's location is never exposed at the requested precision. Set to the
+# request's resolution (e.g. 6) to disable coarsening.
+LONE_RES = max(HEX_RES_MIN, min(HEX_RES_MAX, int(os.environ.get("RAYMAP_LONE_RES", "5"))))
+
 ATTRIBUTION = "Raymap aggregate data (c) contributors, CC BY 4.0"
 
 
@@ -143,6 +148,46 @@ def fold_history(rows: List[Tuple[Any, ...]], res: int) -> Dict[Tuple[date, str]
         stamps = [x for x in (t, last) if x is not None]
         agg[key] = (d + det, max(v, det_dev), max(stamps) if stamps else None)
     return agg
+
+
+def coarsen_lone(records: List[Dict[str, Any]], lone_res: int = LONE_RES) -> List[Dict[str, Any]]:
+    """Fold single-device cells up to `lone_res`.
+
+    A lone contributor is the cell, so publishing them at the requested
+    resolution would publish their location. Moving them up a level (r6 -> r5,
+    ~7.4 km -> ~20 km) makes the marker useless as a locator, and because the
+    cell is stable, sending more reports cannot narrow it down again.
+
+    records: {period, cell, res, dev, rep, det, det_dev, last}
+    Merging never upgrades status: `dev` keeps its minimum and `det_dev` takes
+    the maximum, so two lone sensors in different cells still read unconfirmed.
+    """
+    out: Dict[Tuple[Any, str, int], Dict[str, Any]] = {}
+    for r in records:
+        cell, res = r["cell"], int(r["res"])
+        coarsened = r["dev"] == 1 and res > lone_res
+        if coarsened:
+            cell = h3.cell_to_parent(cell, lone_res)
+            res = lone_res
+        key = (r["period"], cell, res)
+        cur = out.get(key)
+        if cur is None:
+            out[key] = {
+                **r,
+                "cell": cell,
+                "res": res,
+                "precision": "low" if coarsened else "normal",
+            }
+            continue
+        cur["dev"] = min(cur["dev"], r["dev"])
+        cur["det_dev"] = max(cur["det_dev"], r["det_dev"])
+        cur["det"] += r["det"]
+        cur["rep"] += r["rep"]
+        if coarsened:
+            cur["precision"] = "low"
+        stamps = [s for s in (cur["last"], r["last"]) if s is not None]
+        cur["last"] = max(stamps) if stamps else None
+    return list(out.values())
 
 
 def h3_columns(lat: float, lng: float) -> Dict[str, str]:
@@ -453,28 +498,46 @@ def geojson(days: int = 30, res: int = DEFAULT_RES,
             cur.execute(query, params)
             rows = cur.fetchall()
 
-    features = []
+    records = []
     for day, cell, dev, rep, det, det_dev, last_ts in rows:
         lat, lng = h3.cell_to_latlng(cell)
         if box and not (box[0] <= lng <= box[2] and box[1] <= lat <= box[3]):
             continue
+        records.append(
+            {
+                "period": day,
+                "cell": cell,
+                "res": res,
+                "dev": dev,
+                "rep": rep,
+                "det": det,
+                "det_dev": det_dev,
+                "last": last_ts,
+            }
+        )
+
+    features = []
+    for rec in sorted(coarsen_lone(records), key=lambda r: r["rep"], reverse=True):
         if len(features) >= MAX_FEATURES:
             break
-        status, confidence = classify(dev, det_dev)
+        cell = rec["cell"]
+        lat, lng = h3.cell_to_latlng(cell)
+        status, confidence = classify(rec["dev"], rec["det_dev"])
         features.append(
             {
                 "type": "Feature",
                 "properties": {
                     "h3": cell,
-                    "res": res,
-                    "day": str(day),
-                    "device_count": dev,
-                    "report_count": rep,
-                    "detection_count": det,
-                    "detection_device_count": det_dev,
+                    "res": rec["res"],
+                    "precision": rec["precision"],
+                    "day": str(rec["period"]),
+                    "device_count": rec["dev"],
+                    "report_count": rec["rep"],
+                    "detection_count": rec["det"],
+                    "detection_device_count": rec["det_dev"],
                     "status": status,
                     "confidence": confidence,
-                    "last_ts": last_ts.isoformat() if last_ts else None,
+                    "last_ts": rec["last"].isoformat() if rec["last"] else None,
                 },
                 "geometry": {"type": "Point", "coordinates": [lng, lat]},
             }
@@ -698,30 +761,44 @@ def detections(start: Optional[str] = None, end: Optional[str] = None,
             rows = cur.fetchall()
 
     agg = fold_history(rows, res)
+    records = [
+        {
+            "period": month,
+            "cell": cell,
+            "res": res,
+            "dev": det_dev,
+            "rep": 0,
+            "det": det,
+            "det_dev": det_dev,
+            "last": last,
+        }
+        for (month, cell), (det, det_dev, last) in agg.items()
+    ]
+
     features = []
-    for (month, cell), (det, det_dev, last) in sorted(
-        agg.items(), key=lambda kv: kv[1][0], reverse=True
-    ):
-        if det_dev < min_devices:
+    for rec in sorted(coarsen_lone(records), key=lambda r: r["det"], reverse=True):
+        if rec["det_dev"] < min_devices:
             continue
+        cell = rec["cell"]
         lat, lng = h3.cell_to_latlng(cell)
         if box and not (box[0] <= lng <= box[2] and box[1] <= lat <= box[3]):
             continue
         if len(features) >= limit:
             break
-        status, confidence = classify(0, det_dev)
+        status, confidence = classify(rec["dev"], rec["det_dev"])
         features.append(
             {
                 "type": "Feature",
                 "properties": {
                     "h3": cell,
-                    "res": res,
-                    "month": str(month),
-                    "detection_count": det,
-                    "detection_device_count": det_dev,
+                    "res": rec["res"],
+                    "precision": rec["precision"],
+                    "month": str(rec["period"]),
+                    "detection_count": rec["det"],
+                    "detection_device_count": rec["det_dev"],
                     "status": status,
                     "confidence": confidence,
-                    "last_report": last.isoformat() if last else None,
+                    "last_report": rec["last"].isoformat() if rec["last"] else None,
                 },
                 "geometry": {"type": "Point", "coordinates": [lng, lat]},
             }

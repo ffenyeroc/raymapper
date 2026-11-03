@@ -129,9 +129,28 @@ function featureFor(cell, props) {
 }
 
 function render() {
+  // Coarsened lone-device cells are one level larger than the mesh; drop the
+  // finer mesh cells they cover so grey does not show through the big hex.
+  const loneByRes = new Map();
+  for (const [cell, props] of dataByCell) {
+    if (props.precision === "low") {
+      const r = props.res;
+      if (!loneByRes.has(r)) loneByRes.set(r, new Set());
+      loneByRes.get(r).add(cell);
+    }
+  }
+
   const features = [];
   const seen = new Set();
   for (const cell of meshCells) {
+    let covered = false;
+    for (const [r, cells] of loneByRes) {
+      if (r < currentRes && cells.has(h3.cellToParent(cell, r))) {
+        covered = true;
+        break;
+      }
+    }
+    if (covered) continue;
     features.push(featureFor(cell, dataByCell.get(cell)));
     seen.add(cell);
   }
@@ -143,6 +162,14 @@ function render() {
     if (meshBBox && (lng < meshBBox[0] || lng > meshBBox[2] || lat < meshBBox[1] || lat > meshBBox[3])) continue;
     features.push(featureFor(cell, props));
   }
+  // Draw coarsened (low-precision) hexes underneath the precise ones: they can
+  // overlap the same parent area, and the fine cells are the more useful signal.
+  features.sort(
+    (a, b) =>
+      (a.properties.precision === "low" ? 0 : 1) -
+      (b.properties.precision === "low" ? 0 : 1)
+  );
+
   map.getSource("hexes").setData({ type: "FeatureCollection", features });
   updateStatus(features.length);
 }
@@ -315,9 +342,13 @@ function addLayers() {
         `detections: ${p.detection_count} · detecting devices: ${p.detection_device_count}<br>` +
         `day: ${p.day}` +
         (p.last_ts ? `<br>last report: ${new Date(p.last_ts).toLocaleString()}` : "");
-      if (p.confidence === "single") html += "<br><em>Single device — not corroborated.</em>";
+      if (p.confidence === "single") {
+        html += "<br><em>Single device — not corroborated.";
+        if (p.precision === "low") html += " Location coarsened to the parent cell.";
+        html += "</em>";
+      }
     }
-    html += `<br><span class="mono">${p.h3}</span>`;
+    html += `<br><span class="mono">${p.h3} · r${p.res}</span>`;
     popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
   });
   map.on("mousemove", "hex-fill", (e) => {

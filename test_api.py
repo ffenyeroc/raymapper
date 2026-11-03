@@ -282,3 +282,54 @@ class TestFoldHistory(unittest.TestCase):
         agg = app_api.fold_history([(month, cell, 4, 1, None)], 7)
         self.assertIn((month, cell), agg)
         self.assertEqual(agg[(month, cell)][0], 4)
+
+
+class TestCoarsenLone(unittest.TestCase):
+    """A lone contributor is the cell: publish them one level up."""
+
+    def _rec(self, cell, res, dev, det_dev=0, det=0, rep=1):
+        return {
+            "period": date(2026, 11, 1), "cell": cell, "res": res,
+            "dev": dev, "rep": rep, "det": det, "det_dev": det_dev, "last": None,
+        }
+
+    def test_lone_cell_moves_up_one_level(self):
+        c6 = h3lib.latlng_to_cell(33.749, -84.388, 6)
+        out = app_api.coarsen_lone([self._rec(c6, 6, 1)], 5)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["res"], 5)
+        self.assertEqual(out[0]["cell"], h3lib.cell_to_parent(c6, 5))
+        self.assertEqual(out[0]["precision"], "low")
+
+    def test_corroborated_cell_keeps_resolution(self):
+        c6 = h3lib.latlng_to_cell(33.749, -84.388, 6)
+        out = app_api.coarsen_lone([self._rec(c6, 6, 3, det_dev=2, det=2)], 5)
+        self.assertEqual(out[0]["res"], 6)
+        self.assertEqual(out[0]["precision"], "normal")
+        self.assertEqual(app_api.classify(out[0]["dev"], out[0]["det_dev"])[0],
+                         "detected_corroborated")
+
+    def test_two_lone_cells_never_become_corroborated(self):
+        parent = h3lib.latlng_to_cell(33.749, -84.388, 5)
+        kids = h3lib.cell_to_children(parent, 6)
+        out = app_api.coarsen_lone(
+            [self._rec(kids[0], 6, 1, det_dev=1, det=1),
+             self._rec(kids[1], 6, 1, det_dev=1, det=1)], 5)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["dev"], 1)          # merging never adds devices
+        self.assertEqual(out[0]["det"], 2)          # counts still add up
+        status, confidence = app_api.classify(out[0]["dev"], out[0]["det_dev"])
+        self.assertEqual((status, confidence), ("detected_single", "single"))
+        self.assertEqual(out[0]["precision"], "low")
+
+    def test_request_at_lone_res_is_not_lowered(self):
+        c5 = h3lib.latlng_to_cell(33.749, -84.388, 5)
+        out = app_api.coarsen_lone([self._rec(c5, 5, 1)], 5)
+        self.assertEqual(out[0]["res"], 5)
+        self.assertEqual(out[0]["precision"], "normal")
+
+    def test_disabled_when_lone_res_equals_request(self):
+        c6 = h3lib.latlng_to_cell(33.749, -84.388, 6)
+        out = app_api.coarsen_lone([self._rec(c6, 6, 1)], 6)
+        self.assertEqual(out[0]["res"], 6)
+        self.assertEqual(out[0]["cell"], c6)
