@@ -16,7 +16,11 @@ const geo = window.raymapGeo;
 
 const MAX_MESH_CELLS = 8000;
 const HEX_AREA = { 3: 12393, 4: 1770, 5: 253, 6: 36.1, 7: 5.16, 8: 0.737 };
-const US_BBOX = [-125.5, 23.5, -65.5, 50.5];
+// Extent of the areas we draw: CONUS, Alaska (mainland + the Aleutians up to the
+// dateline) and Hawaii. Puerto Rico comes along with the boundary file.
+// shortcut: the far Aleutians past 180° are outside this box, MapLibre wraps
+// them badly and nobody reports from there; widen if that ever changes.
+const US_BBOX = [-170.5, 17.8, -65.5, 72.0];
 const RED = "#e0393e";
 const GREEN = "#2e9e4f";
 const GREY = "#7d8794";
@@ -34,7 +38,7 @@ const map = new maplibregl.Map({
   style: "https://tiles.openfreemap.org/styles/liberty",
   center: [-98.5, 39.5],
   zoom: 5,
-  minZoom: 4,
+  minZoom: 3,
   maxZoom: 14,
   attributionControl: false,
 });

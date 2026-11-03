@@ -42,7 +42,9 @@ Aggregation and detection-folding run **before** pruning, so nothing is lost whe
 - The API returns **only cells that have reports**, filtered to the requested viewport.
 - The UI generates the rest of the mesh itself: `h3.polygonToCells()` over the padded
   viewport, clipped to the vendored US boundary with a small point-in-polygon test, then
-  merged with the API data by H3 index. Cells with no reports render grey.
+  merged with the API data by H3 index. Cells with no reports render grey. The boundary file
+  covers all 50 states plus DC and Puerto Rico, so Alaska, Hawaii and the territories get the
+  same mesh as the mainland (zoom out to 3 to see the whole extent at once).
 - Resolution follows zoom (table above) and never goes finer than r6; if a viewport would
   exceed 8,000 cells the UI steps down a level automatically.
 - Reported cells that fall outside the simplified coastline are still drawn.
