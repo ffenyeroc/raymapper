@@ -227,7 +227,9 @@ function addLayers() {
         "detected_single", 0.10,
         "clear_multi", 0.50,
         "clear_single", 0.10,
-        0.12,
+        // no_data: visible enough to read as a mesh, light enough not to
+        // drown the red/green signal or hide basemap labels.
+        0.22,
       ],
     },
   });
@@ -249,10 +251,10 @@ function addLayers() {
         "match", ["get", "status"],
         "detected_single", 2.2,
         "clear_single", 2.2,
-        "no_data", 0.3,
+        "no_data", 0.8,
         1.2,
       ],
-      "line-opacity": ["match", ["get", "status"], "no_data", 0.35, 0.9],
+      "line-opacity": ["match", ["get", "status"], "no_data", 0.6, 0.9],
     },
   });
 
