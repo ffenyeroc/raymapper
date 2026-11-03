@@ -8,7 +8,7 @@ This is the device-side uploader for Raymap. What counts as a security bug here:
   reinstalls.
 - Anything that makes the collector dump raw `qmdl` content off the device.
 
-Mapping and server issues belong in the `raymap-map` repository.
+Mapping and server issues belong in the map/API code at the repository root.
 
 ## Reporting
 

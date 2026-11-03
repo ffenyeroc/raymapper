@@ -23,7 +23,7 @@ there is no SLA beyond that; privacy fixes outrank every other kind of work.
 ## Scope
 
 - This repository: API, ingest, aggregation, moderation, UI.
-- `raymap-collector`: the device-side uploader.
+- `collector/`: the device-side uploader.
 
 Out of scope: Rayhunter and the hotspot firmware, the basemap tiles (OpenFreeMap/OpenMapTiles),
 and the accuracy of Rayhunter's own analyzers — please report those upstream.

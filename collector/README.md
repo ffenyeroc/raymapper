@@ -3,6 +3,9 @@
 A **pure-Python + `requests`** dev version of the USB collector for the
 [crowdsourced Rayhunter map](https://github.com/EFForg/rayhunter) project.
 
+> Part of the raymapper monorepo: this directory is the device client, the map service is
+> at the repository root. Run everything below from `collector/`.
+
 It polls the Rayhunter daemon on a **USB-tethered Orbic RC400L** over the local
 `:8080` API, then periodically uploads compact, gzipped JSON status records to
 a map server. It is station-local: the computer talks to the hotspot over USB
@@ -29,8 +32,11 @@ internet connection.
 | `mock_map_server.py` | Receiver that prints/records uploaded batches — verifies the upload half. |
 | `org.raymap.collector.plist` | `launchd` LaunchAgent manifest (runs it in the background). |
 | `test_collector.py` | Unit tests for the poll/upload schedule (no device required). |
-| `LICENSE` / `NOTICE` | Apache-2.0 code; Rayhunter is a separate GPL-3.0 program (no code copied). |
 | `requirements.txt` | Only `requests`. |
+
+Licences live at the repository root: code is Apache-2.0 (`../LICENSE`), and `../NOTICE`
+covers the third-party positions, including that Rayhunter is a separate GPL-3.0 program
+(no code copied).
 
 ---
 
@@ -49,7 +55,7 @@ Covers `should_upload` (interval vs. change, and retry-after-failure timing),
 ## Quick start (dev)
 
 ```bash
-cd /Users/admin/raymap-collector
+cd collector
 python3 -m venv .venv
 ./.venv/bin/pip install -r requirements.txt
 

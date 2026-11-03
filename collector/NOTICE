@@ -1,9 +1,0 @@
-raymap-collector — third-party notices
-======================================
-
-Rayhunter (https://github.com/EFForg/rayhunter) is a separate program licensed
-GPL-3.0. This collector talks to its local HTTP API (http://<device>:8080) and
-contains no Rayhunter code.
-
-Code in this repository is licensed Apache-2.0 — see LICENSE.
-Uploaded aggregate data is published under CC BY 4.0 by the map service.

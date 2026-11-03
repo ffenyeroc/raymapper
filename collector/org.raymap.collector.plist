@@ -13,14 +13,14 @@
 
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/admin/raymap-collector/.venv/bin/python</string>
-    <string>/Users/admin/raymap-collector/collector.py</string>
+    <string>/Users/admin/raymap-map/collector/.venv/bin/python</string>
+    <string>/Users/admin/raymap-map/collector/collector.py</string>
     <string>--config</string>
-    <string>/Users/admin/raymap-collector/config.toml</string>
+    <string>/Users/admin/raymap-map/collector/config.toml</string>
   </array>
 
   <key>WorkingDirectory</key>
-  <string>/Users/admin/raymap-collector</string>
+  <string>/Users/admin/raymap-map/collector</string>
 
   <key>KeepAlive</key>
   <true/>

@@ -1,11 +1,12 @@
-# raymap-map — ingest, aggregation and hex map UI
+# raymapper — ingest, aggregation and hex map UI
 
 Hosts and visualizes crowdsourced Rayhunter hotspot detections as an **H3 hexagon mesh**
 over the US. Hosted locally for now: uvicorn + PostGIS in Docker Compose. The cloud path
 (Cloud Run + Cloud SQL + Cloud Storage) is deferred until the project moves off localhost.
 
-> Companion to `raymap-collector`, which polls a USB-tethered hotspot and uploads gzipped
-> batches to `POST /ingest`.
+> This repository holds both halves: the map service (everything at the root) and the
+> device client in [`collector/`](collector/README.md), which polls a USB-tethered hotspot
+> and uploads gzipped batches to `POST /ingest`.
 
 ## Privacy model
 

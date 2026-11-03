@@ -24,6 +24,8 @@ cp .env.example .env                      # then set RAYMAP_ADMIN_TOKEN
 ./.venv/bin/python -m unittest -q test_api test_adb
 node ui/test_geo.js && node ui/test_search.js
 node --check ui/app.js                    # syntax check, no build step
+
+cd collector && ./.venv/bin/python -m unittest -q test_collector   # device client
 ```
 
 ## Style
