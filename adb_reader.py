@@ -42,6 +42,10 @@ import requests
 
 DEVICE_CONFIG = "/data/rayhunter-data/config.toml"
 DEVICE_QMDL = "/data/rayhunter-data/qmdl"
+DEVICE_MANIFEST = f"{DEVICE_QMDL}/manifest.toml"
+# This client reads Rayhunter's config/manifest/analyzer layout directly, so an
+# upgrade that moves those files breaks it silently. Warn instead.
+PINNED_RAYHUNTER = "0.12.0"
 
 
 # --------------------------------------------------------------------------
@@ -146,8 +150,34 @@ def adb_shell(serial: str, command: str) -> str:
 
 def adb_cat(serial: str, path: str) -> str:
     return adb_shell(serial, f"cat {path}")
+
+
 def adb_ls(serial: str, path: str) -> str:
     return adb_shell(serial, f"ls -la --color=never {path}")
+
+
+def manifest_version(text: str) -> Optional[str]:
+    """rayhunter_version of the newest session in manifest.toml, or None.
+
+    Entries are appended per recording session, so the last one is what is
+    currently running.
+    """
+    versions = re.findall(r'rayhunter_version\s*=\s*"([^"]+)"', text)
+    return versions[-1] if versions else None
+
+
+def preflight(serial: str) -> None:
+    """Warn (do not fail) when the device is not the version this client targets."""
+    version = manifest_version(adb_cat(serial, DEVICE_MANIFEST))
+    if version is None:
+        print(f"preflight: no Rayhunter version in {DEVICE_MANIFEST} — paths may have moved")
+    elif version != PINNED_RAYHUNTER:
+        print(
+            f"preflight: Rayhunter {version}, this client is written for {PINNED_RAYHUNTER}"
+            " — check that the config/manifest paths still exist"
+        )
+    else:
+        print(f"preflight: Rayhunter {version}")
 
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
@@ -396,6 +426,7 @@ def main() -> None:
             sys.exit(1)
 
     print(f"using device serial: {serial}")
+    preflight(serial)
 
     def run_once() -> None:
         config = parse_config(adb_cat(serial, DEVICE_CONFIG))

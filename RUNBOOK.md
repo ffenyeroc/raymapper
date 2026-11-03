@@ -140,8 +140,17 @@ tail -f ~/Library/Logs/raymap-device.log                # one line per report
 - Uploads are proof-of-work signed and land on the map as `clear_single` cells until an
   analyzer event fires — green means "no detection reported", not "no catcher".
 - The device's cell is published at r6 (7.4 km), like any other single-device cell.
-- Raw `qmdl` captures accumulate on the device (~47 MB after 33 sessions of 214 MB). Delete
-  old ones periodically — they contain identifiers we deliberately never upload.
+- The reader prints a preflight line on start — `preflight: Rayhunter 0.12.0`. It is written
+  against that layout (`config.toml`, `qmdl/manifest.toml`, analyzer ndjson); any other
+  version prints a warning instead of failing quietly.
+- Raw `qmdl` captures accumulate (~47 MB after 33 sessions; 142 MB free of 214 MB). They hold
+  identifiers we deliberately never upload, so prune them when `/data` gets tight — the script
+  keeps the newest sessions and never deletes the detection ndjson or the manifest:
+
+```bash
+./scripts/prune_device_qmdl.sh                  # dry run, keeps the newest 5
+./scripts/prune_device_qmdl.sh --keep 3 --apply
+```
 
 ## History export
 

@@ -63,6 +63,18 @@ class TestRedact(unittest.TestCase):
         self.assertIsNone(adb_reader.redact({"lat": None, "lon": None})["lat"])
 
 
+class TestManifestVersion(unittest.TestCase):
+    def test_takes_the_newest_entry(self):
+        text = (
+            '[[entries]]\nname = "1"\nrayhunter_version = "0.11.0"\n\n'
+            '[[entries]]\nname = "2"\nrayhunter_version = "0.12.0"\n'
+        )
+        self.assertEqual(adb_reader.manifest_version(text), "0.12.0")
+
+    def test_unreadable_manifest_is_none(self):
+        self.assertIsNone(adb_reader.manifest_version(""))
+
+
 class TestPow(unittest.TestCase):
     BODY = b'{"device":"x","records":[{"ts":1}]}'
 

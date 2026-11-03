@@ -179,6 +179,7 @@ Ban a device: `INSERT INTO blocked_devices (device_hash, reason) VALUES ('<hash>
 | `adb_reader.py` | Interim path: pull device data over ADB and post to `/ingest` |
 | `scripts/migrate_to_hex.py` | One-time geohash→H3 migration (presence rebuilt, archive preserved) |
 | `scripts/migrate_drop_r8.py` | One-time drop of the unused `h3_r8` column |
+| `scripts/prune_device_qmdl.sh` | Prune raw device captures (`--keep N`, dry-run by default) |
 | `scripts/check_state_coverage.py` | Per-state cell counts + mesh coverage check |
 | `scripts/build_places.py` | Rebuilds `ui/data/places.json.gz` from the Census gazetteer (`--download`) |
 | `launchd/`, `scripts/install_services.sh` | launchd agents for the API, nightly backups and the device reader |
