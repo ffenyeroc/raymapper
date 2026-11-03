@@ -19,7 +19,7 @@ const HEX_AREA = { 3: 12393, 4: 1770, 5: 253, 6: 36.1, 7: 5.16, 8: 0.737 };
 const US_BBOX = [-125.5, 23.5, -65.5, 50.5];
 const RED = "#e0393e";
 const GREEN = "#2e9e4f";
-const GREY = "#9aa3af";
+const GREY = "#7d8794";
 
 const STATUS_LABEL = {
   detected_corroborated: "possible interference (2+ devices)",

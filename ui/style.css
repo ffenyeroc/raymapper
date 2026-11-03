@@ -34,7 +34,8 @@ html, body { margin: 0; height: 100%; font-family: -apple-system, system-ui, san
 /* solid = corroborated by 2+ devices; hollow = a single device (unconfirmed) */
 .swatch.solid.red   { background: #e0393e; }
 .swatch.solid.green { background: #2e9e4f; }
-.swatch.solid.grey  { background: rgba(154,163,175,0.45); border: 1px solid rgba(154,163,175,1); }
+/* keep in sync with GREY in app.js (#7d8794 = 125,135,148) */
+.swatch.solid.grey  { background: rgba(125,135,148,0.45); border: 1px solid rgba(125,135,148,1); }
 .swatch.hollow.red  { border: 2.5px solid #e0393e; background: transparent; }
 .swatch.hollow.green{ border: 2.5px solid #2e9e4f; background: transparent; }
 .legend .note { margin-top: 6px; color: #444; font-style: italic; }
