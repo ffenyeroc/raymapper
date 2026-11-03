@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>raymap — crowdsourced detection map</title>
+  <link href="style.css" rel="stylesheet" />
+  <!-- Vendored locally (no CDN dependency): https://unpkg.com/maplibre-gl@3.6.2 -->
+  <link href="vendor_maplibre-gl.css" rel="stylesheet" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>raymap</h1>
+    <div class="controls">
+      <label>
+        Days
+        <select id="days">
+          <option value="1">1 day</option>
+          <option value="7" selected>7 days</option>
+          <option value="30">30 days</option>
+          <option value="90">90 days</option>
+        </select>
+      </label>
+      <label class="check">
+        <input type="checkbox" id="detections-only" />
+        Detections only
+      </label>
+      <button id="refresh">Refresh</button>
+      <span id="status" class="status"></span>
+    </div>
+  </header>
+
+  <div id="map"></div>
+
+  <div id="legend" class="legend">
+    <div><span class="swatch" data-s="detected_corroborated"></span> detection, 2+ devices</div>
+    <div><span class="swatch hollow" data-s="detected_single"></span> detection, 1 device <em>(unconfirmed)</em></div>
+    <div><span class="swatch" data-s="clear_multi"></span> no detection, 2+ devices</div>
+    <div><span class="swatch hollow" data-s="clear_single"></span> no detection, 1 device</div>
+    <div class="note">No marker = no reports in this window — not evidence of safety.</div>
+  </div>
+
+  <div id="popup" class="popup" hidden></div>
+
+  <script src="vendor_maplibre-gl.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

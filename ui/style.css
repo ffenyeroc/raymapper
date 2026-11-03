@@ -1,0 +1,43 @@
+/* raymap UI styles */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; font-family: -apple-system, system-ui, sans-serif; }
+
+.topbar {
+  position: relative; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 16px; background: #1c2333; color: #fff; gap: 12px;
+}
+.topbar h1 { margin: 0; font-size: 18px; letter-spacing: 1px; }
+.controls { display: flex; align-items: center; gap: 16px; font-size: 13px; }
+.controls label { display: flex; align-items: center; gap: 6px; }
+.controls select, .controls button {
+  padding: 4px 8px; border-radius: 4px; border: 1px solid #555; background: #2b3450; color: #fff;
+}
+.status { color: #9fe3a6; }
+.status.err { color: #ff9f9f; }
+
+#map { position: absolute; inset: 44px 0 0 0; }
+
+.legend {
+  position: absolute; z-index: 10; left: 12px; bottom: 24px;
+  background: rgba(255,255,255,0.94); padding: 8px 12px; border-radius: 8px;
+  font-size: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.3); max-width: 280px;
+}
+.legend .swatch {
+  display: inline-block; width: 12px; height: 12px; border-radius: 50%;
+  margin-right: 6px; vertical-align: middle;
+}
+/* Solid = corroborated by 2+ devices; hollow = a single device (unconfirmed). */
+.swatch[data-s="detected_corroborated"] { background: #e0393e; }
+.swatch[data-s="clear_multi"]          { background: #2e9e4f; }
+.swatch[data-s="detected_single"]      { border: 2.5px solid #e0393e; background: transparent; }
+.swatch[data-s="clear_single"]         { border: 2.5px solid #2e9e4f; background: transparent; }
+.legend .note { margin-top: 6px; color: #444; font-style: italic; }
+.legend em { font-style: italic; }
+
+.popup {
+  position: absolute; z-index: 20; left: 16px; top: 60px;
+  background: #fff; border-radius: 8px; padding: 10px 12px;
+  font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); max-width: 300px;
+}
+.popup strong { display: block; margin-bottom: 4px; }

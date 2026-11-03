@@ -1,0 +1,128 @@
+# raymap-map — ingest, aggregation and map UI
+
+Hosts and visualizes crowdsourced Rayhunter hotspot detections on a map of the
+US. Target deployment is GCP-native and near-zero cost: **Cloud Run + Cloud
+SQL (PostGIS) + Cloud Storage**; local development uses Docker Compose.
+
+> Companion to `raymap-collector`, which polls a USB-tethered hotspot and
+> uploads gzipped batches to `POST /ingest`.
+
+## Privacy model
+
+- **No precise coordinates are ever stored.** Each report is snapped at insert
+  time to a **geohash-6 cell** (~1.2 km x 0.6 km) and the lat/lon are discarded.
+  This replaces per-report jitter, which is defeated by averaging repeated
+  reports from a stationary collector.
+- Device ids are generated randomly per install and hashed before upload.
+- **Single-device cells are shown but marked unconfirmed** (hollow markers).
+- Areas with no reports say so explicitly: absence of data is *not* evidence
+  of safety.
+
+## Retention
+
+Short by design, with the detection record preserved:
+
+| Data | Retained | Purpose |
+|---|---|---|
+| `reports` (raw) | **72 hours** | dedup/idempotency, retractions, replay after an aggregation fix |
+| `daily_cells` | **90 days** | day x cell aggregates — what the live map reads |
+| `detection_months` | **indefinite** | only cells with detections, month x cell (the searchable public record) |
+
+Aggregation and detection-folding run **before** the pruning job, so nothing is
+lost when raw rows expire.
+
+## Architecture
+
+```
+collector --POST /ingest (gzip JSON)--> Cloud Run: raymap-api
+                                          | validate, snap to geohash-6
+                                          v
+                                   Cloud SQL Postgres + PostGIS
+                                          | refresh_daily_cells()
+                                          | fold_detection_months()
+                                          v
+                              daily_cells / detection_months
+                                          | export
+                                          v
+                    Cloud Storage: geojson.json.gz --> browser (cached)
+```
+
+- `reports` holds raw rows for 72 h; `daily_cells` is the only table the read
+  path touches, so `/geojson` is cheap and cacheable.
+- Refreshing is an explicit job (`POST /internal/refresh`), **not** a side
+  effect of `/geojson`.
+- The Cloudflare Worker ingest path was **removed** in M0: it duplicated
+  ingest without the privacy transform.
+
+## Local development
+
+```bash
+cd /Users/admin/raymap-map
+python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
+
+docker compose down -v && docker compose up -d   # reset: schema changed in M0
+./.venv/bin/python seed.py                       # schema + ~300k sample reports
+./.venv/bin/python -m uvicorn app_api:app --port 8000 --app-dir .
+
+# Open http://localhost:8000 -> MapLibre UI
+# New ingests appear after an explicit refresh:
+curl -X POST 'http://localhost:8000/internal/refresh?days=7'
+```
+
+## API
+
+| Endpoint | Description |
+|---|---|
+| `POST /ingest` | Collector batch: `{device, count, records:[...]}`, optional gzip. Validates every record; returns `{inserted, rejected, first_error?}`. Coordinates are snapped to a cell and discarded. |
+| `GET /geojson?days=7&include_detections_only=false` | Aggregated cells as GeoJSON. `days` is bounded to **1..90**; each feature carries `status`, `confidence`, `device_count`, `detection_device_count`, `last_ts`. Response includes `attribution` (CC BY 4.0). |
+| `POST /internal/refresh?days=30` | Recompute `daily_cells` and fold `detection_months`. Called by the scheduler (OIDC in M1). |
+| `GET /healthz` | Liveness plus a database check (503 when the DB is unreachable). |
+
+### Display states (k = 1)
+
+| `status` | Meaning | Rendering |
+|---|---|---|
+| `detected_corroborated` | >=2 devices reported a detection | solid red |
+| `detected_single` | 1 device reported a detection | **hollow red** + "unconfirmed" |
+| `clear_multi` | >=2 devices, no detections | solid green |
+| `clear_single` | 1 device, no detections | hollow green |
+| *(no feature)* | no reports in the window | legend note: not evidence of safety |
+
+Tunable with `RAYMAP_CELL_PRECISION` (default `6`; 5 ~= 4.9 km, 7 ~= 153 m).
+
+## Files
+
+| File | Purpose |
+|---|---|
+| `schema.sql` | PostGIS, `reports`, `daily_cells`, `detection_months`, refresh/fold/prune functions |
+| `app_api.py` | FastAPI: `/ingest`, `/geojson`, `/internal/refresh`, `/healthz`, serves `ui/` |
+| `ui/` | MapLibre GL + OpenFreeMap UI (vendored MapLibre v3.6.2, no CDN) |
+| `seed.py` | Schema apply + simulated reports (cell-snapped) |
+| `adb_reader.py` | Interim path: pull device data over ADB and post to `/ingest` |
+| `cron.sql` | Equivalent `pg_cron` schedule for databases that have it (GCP uses Cloud Scheduler) |
+| `docker-compose.yml` | Local `postgis/postgis:16-3.4` on port 5433 |
+| `test_api.py` | Unit tests for classification, validation and bounds |
+| `LICENSE` / `LICENSE-DATA` / `NOTICE` | Apache-2.0 code, CC BY 4.0 data, third-party attribution |
+
+## Tests
+
+```bash
+./.venv/bin/python -m unittest -q test_api
+```
+
+No database required — the tests cover the pure helpers (`classify`,
+`validate_record`, `clamp_days`, cell-precision bounds).
+
+## Deploying (M1, not yet built)
+
+Cloud Run service + Cloud SQL Postgres (private connector) + Cloud Storage for
+the exported GeoJSON + one Cloud Scheduler job calling `/internal/refresh`.
+Budget guardrail: billing alert at $20/mo. The external load balancer and
+Cloud Armor are deliberately deferred until abuse is observed.
+
+## License
+
+Code: **Apache-2.0** (`LICENSE`). Aggregate data: **CC BY 4.0**
+(`LICENSE-DATA`) — attribution: *"Raymap aggregate data (c) contributors,
+CC BY 4.0"*. Third-party notices (MapLibre BSD-3, OpenFreeMap/OpenMapTiles/OSM
+ODbL, Rayhunter GPL-3 interop) are in `NOTICE`.

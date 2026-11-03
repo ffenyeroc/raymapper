@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: raymap_db
+    environment:
+      POSTGRES_USER: raymap
+      POSTGRES_PASSWORD: raymap
+      POSTGRES_DB: raymap
+    ports:
+      - "5433:5432"          # 5433 on host to avoid clashing with a local Postgres
+    volumes:
+      - raymap_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U raymap -d raymap"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  raymap_pgdata:

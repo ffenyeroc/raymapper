@@ -1,0 +1,18 @@
+raymap-map — third-party notices
+================================
+
+MapLibre GL JS 3.6.2 (vendored as ui/vendor_maplibre-gl.js and .css)
+  Copyright (c) MapLibre contributors — BSD-3-Clause
+  https://github.com/maplibre/maplibre-gl-js
+
+Basemap tiles and style ("liberty") are served by OpenFreeMap:
+  OpenFreeMap — https://openfreemap.org
+  OpenMapTiles — https://openmaptiles.org
+  OpenStreetMap contributors — ODbL 1.0 — https://www.openstreetmap.org/copyright
+  Attribution must remain visible on the map (ODbL requirement).
+
+Rayhunter (https://github.com/EFForg/rayhunter) is a separate GPL-3.0 program.
+This project talks to its local HTTP API; no Rayhunter code is included here.
+
+Aggregate data published by this project is licensed CC BY 4.0 — see LICENSE-DATA.
+Code is licensed Apache-2.0 — see LICENSE.
