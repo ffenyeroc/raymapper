@@ -14,6 +14,11 @@ US state/land boundary (ui/data/us_states.geojson)
   (cb_2023_us_state_20m), simplified with mapshaper. U.S. Government work —
   public domain.
 
+Place and ZIP search index (ui/data/places.json.gz)
+  Derived from the U.S. Census Bureau 2023 Gazetteer files
+  (2023_Gaz_place_national, 2023_Gaz_zcta_national). U.S. Government work —
+  public domain.
+
 Basemap tiles and style ("liberty") are served by OpenFreeMap:
   OpenFreeMap — https://openfreemap.org
   OpenMapTiles — https://openmaptiles.org

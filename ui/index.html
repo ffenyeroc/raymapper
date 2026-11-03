@@ -12,6 +12,10 @@
   <header class="topbar">
     <h1>raymap</h1>
     <div class="controls">
+      <form id="search-form" class="search" role="search">
+        <input id="search" type="search" placeholder="ZIP or town, ST"
+               autocomplete="off" aria-label="Search by ZIP code or town name" />
+      </form>
       <label>
         Days
         <select id="days">
@@ -48,6 +52,7 @@
   <script src="vendor_maplibre-gl.js"></script>
   <script src="vendor_h3-js.js"></script>
   <script src="geo.js"></script>
+  <script src="search.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

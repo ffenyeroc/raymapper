@@ -46,6 +46,9 @@ Aggregation and detection-folding run **before** pruning, so nothing is lost whe
 - Resolution follows zoom (table above) and never goes finer than r6; if a viewport would
   exceed 8,000 cells the UI steps down a level automatically.
 - Reported cells that fall outside the simplified coastline are still drawn.
+- **Search** (top bar): a ZIP code, `ZIP+4`, `town, ST`, or a bare town name flies the map to
+  that place. Lookup is a vendored Census gazetteer (`ui/data/places.json.gz`, ~32k places and
+  ~34k ZIPs) so queries never leave the browser — no geocoding service, no leaked IPs.
 
 ## Local development
 
@@ -151,12 +154,15 @@ Ban a device: `INSERT INTO blocked_devices (device_hash, reason) VALUES ('<hash>
 | `app_api.py` | FastAPI: `/ingest`, `/geojson`, `/internal/*`, `/healthz`, serves `ui/` |
 | `ui/app.js` | Hex mesh, res-by-zoom, six display states |
 | `ui/geo.js` | Point-in-polygon, bbox helpers, zoom→res ladder (dependency-free, node-tested) |
+| `ui/search.js` | Offline ZIP/place lookup (dependency-free, node-tested) |
+| `ui/data/places.json.gz` | Census gazetteer index for search (~800 KB gz, loaded on first search) |
 | `ui/data/us_states.geojson` | US land/states boundary, vendored (Census, public domain, simplified) |
 | `ui/vendor_h3-js.js` / `ui/vendor_maplibre-gl.js` | Vendored H3 4.5.0 and MapLibre 3.6.2 (no CDN) |
 | `seed.py` | Schema apply + simulated reports (`--cluster` for realistic density) |
 | `adb_reader.py` | Interim path: pull device data over ADB and post to `/ingest` |
 | `scripts/migrate_to_hex.py` | One-time geohash→H3 migration (presence rebuilt, archive preserved) |
 | `scripts/check_state_coverage.py` | Per-state cell counts + mesh coverage check |
+| `scripts/build_places.py` | Rebuilds `ui/data/places.json.gz` from the Census gazetteer (`--download`) |
 | `test_api.py`, `test_adb.py`, `ui/test_geo.js` | Unit tests |
 | `LICENSE` / `LICENSE-DATA` / `NOTICE` | Apache-2.0 code, CC BY 4.0 data, third-party attribution |
 
@@ -164,12 +170,19 @@ Ban a device: `INSERT INTO blocked_devices (device_hash, reason) VALUES ('<hash>
 
 ```bash
 ./.venv/bin/python -m unittest -q test_api test_adb   # 34 tests
-node --test ui/test_geo.js                            # 7 tests
+node --test ui/test_geo.js ui/test_search.js          # 14 tests
 ./.venv/bin/python scripts/check_state_coverage.py    # geometry + coverage check
 ```
 
 CI runs the same on every push/PR, plus gitleaks and an advisory `pip-audit`.
 (`.github/workflows/ci.yml`)
+
+### Serving note
+
+`data/places.json.gz` must be served **without** `Content-Encoding: gzip` — the browser
+fetches the raw bytes and inflates them with `DecompressionStream`. A proxy or CDN that
+rewrites the header would double-decompress it; if that is unavoidable, serve a plain
+`.json` instead and drop the `pipeThrough` call in `ui/app.js`.
 
 ## Hosting
 

@@ -13,6 +13,13 @@ html, body { margin: 0; height: 100%; font-family: -apple-system, system-ui, san
 .controls select, .controls button {
   padding: 4px 8px; border-radius: 4px; border: 1px solid #555; background: #2b3450; color: #fff;
 }
+.search input {
+  width: 190px; padding: 4px 8px; border-radius: 6px;
+  border: 1px solid #555; background: #2b3450; color: #fff;
+}
+.search input::placeholder { color: #9aa3af; }
+@media (max-width: 720px) { .search input { width: 130px; } }
+
 .status { color: #9fe3a6; }
 .status.err { color: #ff9f9f; }
 .badge {

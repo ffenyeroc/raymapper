@@ -50,6 +50,8 @@ const detOnlyEl = document.getElementById("detections-only");
 const refreshBtn = document.getElementById("refresh");
 const statusEl = document.getElementById("status");
 const resBadge = document.getElementById("res-badge");
+const searchForm = document.getElementById("search-form");
+const searchInput = document.getElementById("search");
 
 let states = [];              // [{feature, bbox}]
 let dataByCell = new Map();   // h3 -> properties
@@ -203,6 +205,49 @@ async function refreshView({ force = false } = {}) {
     rebuild();
   }
 }
+
+// --- search ----------------------------------------------------------------
+// The place/ZIP index is a static gzip file, so queries never leave the browser.
+let placesDb = null;
+
+async function loadPlaces() {
+  if (placesDb) return placesDb;
+  if (typeof DecompressionStream === "undefined") {
+    throw new Error("this browser cannot decompress the search index");
+  }
+  const resp = await fetch("data/places.json.gz");
+  if (!resp.ok) throw new Error(`search index HTTP ${resp.status}`);
+  const stream = new Blob([await resp.arrayBuffer()])
+    .stream()
+    .pipeThrough(new DecompressionStream("gzip"));
+  placesDb = JSON.parse(await new Response(stream).text());
+  return placesDb;
+}
+
+searchForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const query = searchInput.value.trim();
+  if (!query) return;
+  statusEl.classList.remove("err");
+  statusEl.textContent = "searching…";
+  try {
+    const hit = window.raymapSearch.lookup(await loadPlaces(), query);
+    if (!hit) {
+      statusEl.textContent = `no match for “${query}”`;
+      statusEl.classList.add("err");
+      return;
+    }
+    map.flyTo({ center: [hit.lng, hit.lat], zoom: 11, speed: 1.4 });
+    searchInput.value = hit.label;
+    searchInput.blur();
+    if (hit.ambiguous) {
+      statusEl.textContent = `“${query}” matches several places — showing ${hit.label}`;
+    }
+  } catch (err) {
+    statusEl.textContent = `search error: ${err.message}`;
+    statusEl.classList.add("err");
+  }
+});
 
 // --- layers ----------------------------------------------------------------
 function addLayers() {
