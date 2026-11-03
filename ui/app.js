@@ -117,7 +117,8 @@ function boundary(cell) {
 
 function featureFor(cell, props) {
   const properties = props || {
-    h3: cell, res: currentRes, status: "no_data", confidence: "none",
+    h3: cell, res: currentRes, precision: "normal",
+    status: "no_data", confidence: "none",
     device_count: 0, report_count: 0, detection_count: 0,
     detection_device_count: 0, day: null, last_ts: null,
   };
@@ -154,12 +155,16 @@ function render() {
     features.push(featureFor(cell, dataByCell.get(cell)));
     seen.add(cell);
   }
-  // Never hide a reported cell because the mesh missed it (e.g. coastlines),
-  // but keep the extra polygons inside the viewport.
+  // Never hide a reported cell because the mesh missed it (e.g. coastlines).
+  // Coarsened cells are exempt from the viewport test: the API already filtered
+  // by viewport, and their centre can sit outside it while you are still inside
+  // the cell (which is exactly when the centre marker matters).
   for (const [cell, props] of dataByCell) {
     if (seen.has(cell)) continue;
-    const [lat, lng] = h3.cellToLatLng(cell);
-    if (meshBBox && (lng < meshBBox[0] || lng > meshBBox[2] || lat < meshBBox[1] || lat > meshBBox[3])) continue;
+    if (props.precision !== "low") {
+      const [lat, lng] = h3.cellToLatLng(cell);
+      if (meshBBox && (lng < meshBBox[0] || lng > meshBBox[2] || lat < meshBBox[1] || lat > meshBBox[3])) continue;
+    }
     features.push(featureFor(cell, props));
   }
   // Draw coarsened (low-precision) hexes underneath the precise ones: they can
@@ -294,14 +299,20 @@ function addLayers() {
         GREY,
       ],
       "fill-opacity": [
-        "match", ["get", "status"],
-        "detected_corroborated", 0.55,
-        "detected_single", 0.10,
-        "clear_multi", 0.50,
-        "clear_single", 0.10,
-        // no_data: visible enough to read as a mesh, light enough not to
-        // drown the red/green signal or hide basemap labels.
-        0.28,
+        "case",
+        // Inside a coarsened cell (20 km) at high zoom the fill becomes a
+        // full-screen tint, so drop it and let the centre marker speak instead.
+        ["all", ["==", ["get", "precision"], "low"], [">=", ["zoom"], 12]], 0,
+        [
+          "match", ["get", "status"],
+          "detected_corroborated", 0.55,
+          "detected_single", 0.10,
+          "clear_multi", 0.50,
+          "clear_single", 0.10,
+          // no_data: visible enough to read as a mesh, light enough not to
+          // drown the red/green signal or hide basemap labels.
+          0.28,
+        ],
       ],
     },
   });
@@ -327,6 +338,27 @@ function addLayers() {
         1.2,
       ],
       "line-opacity": ["match", ["get", "status"], "no_data", 0.6, 0.9],
+    },
+  });
+
+  // Marker for coarsened cells: once you are inside one, the hex boundary is
+  // off-screen, so show a dot at its centre instead of tinting the viewport.
+  map.addLayer({
+    id: "hex-centre",
+    type: "circle",
+    source: "hexes",
+    filter: ["==", ["get", "precision"], "low"],
+    paint: {
+      "circle-color": [
+        "match", ["get", "status"],
+        "detected_corroborated", RED,
+        "detected_single", RED,
+        GREEN,
+      ],
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 11, 5, 14, 8],
+      "circle-stroke-color": "#ffffff",
+      "circle-stroke-width": 1.5,
+      "circle-opacity": ["interpolate", ["linear"], ["zoom"], 11, 0, 12, 1],
     },
   });
 
