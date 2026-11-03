@@ -226,3 +226,59 @@ class TestBbox(unittest.TestCase):
         self.assertIsNone(app_api.parse_bbox(None))
         self.assertIsNone(app_api.parse_bbox(""))
         self.assertIsNone(app_api.parse_bbox("a,b,c"))
+
+
+# --- history, moderation guard (added with the /detections slice) -----------
+import h3 as h3lib  # noqa: E402
+from datetime import date  # noqa: E402
+
+
+class TestParseMonth(unittest.TestCase):
+    def test_accepts_month_and_day(self):
+        self.assertEqual(app_api.parse_month("2026-11"), date(2026, 11, 1))
+        self.assertEqual(app_api.parse_month("2026-11-23"), date(2026, 11, 1))
+
+    def test_rejects_junk(self):
+        for value in (None, "", "2026", "November", "2026-13"):
+            self.assertIsNone(app_api.parse_month(value), value)
+
+
+class TestAdminGuard(unittest.TestCase):
+    def test_loopback_only_without_token(self):
+        saved = app_api.ADMIN_TOKEN
+        app_api.ADMIN_TOKEN = ""
+        try:
+            self.assertTrue(app_api.admin_allowed("127.0.0.1", None))
+            self.assertTrue(app_api.admin_allowed("::1", None))
+            self.assertFalse(app_api.admin_allowed("10.0.0.5", None))
+        finally:
+            app_api.ADMIN_TOKEN = saved
+
+    def test_token_required_when_configured(self):
+        saved = app_api.ADMIN_TOKEN
+        app_api.ADMIN_TOKEN = "s3cret"
+        try:
+            self.assertTrue(app_api.admin_allowed("10.0.0.5", "s3cret"))
+            self.assertFalse(app_api.admin_allowed("10.0.0.5", "nope"))
+            self.assertFalse(app_api.admin_allowed("127.0.0.1", None))
+        finally:
+            app_api.ADMIN_TOKEN = saved
+
+
+class TestFoldHistory(unittest.TestCase):
+    def test_folds_r7_children_into_parent(self):
+        parent = h3lib.latlng_to_cell(33.749, -84.388, 6)
+        kids = h3lib.cell_to_children(parent, 7)
+        month = date(2026, 11, 1)
+        rows = [(month, kids[0], 3, 1, None), (month, kids[1], 2, 2, None)]
+        agg = app_api.fold_history(rows, 6)
+        det, det_dev, _ = agg[(month, parent)]
+        self.assertEqual(det, 5)
+        self.assertEqual(det_dev, 2)  # max, never a sum across cells
+
+    def test_same_res_passes_through(self):
+        cell = h3lib.latlng_to_cell(33.749, -84.388, 7)
+        month = date(2026, 11, 1)
+        agg = app_api.fold_history([(month, cell, 4, 1, None)], 7)
+        self.assertIn((month, cell), agg)
+        self.assertEqual(agg[(month, cell)][0], 4)

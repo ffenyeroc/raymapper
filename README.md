@@ -68,6 +68,10 @@ docker compose down -v && docker compose up -d   # reset: the schema is H3-based
 | `GET /geojson?days=7&res=6&bbox=w,s,e,n` | Aggregated hex cells. `days` bounded 1–90, `res` clamped to **3–6** (`res=7|8` returns r6), `bbox` optional (viewport filter). Features carry `h3`, `res`, `status`, `confidence`, counts and `last_ts`; the response carries `attribution` (CC BY 4.0). |
 | `POST /internal/refresh?days=30` | Recompute `daily_cells` (all resolutions) and fold `detection_months`. |
 | `POST /internal/maintain` | refresh + fold + prune, in that order (runs automatically every `RAYMAP_MAINTAIN_INTERVAL_S`). |
+| `GET /detections?start=YYYY-MM&end=YYYY-MM&res=6&min_devices=1&bbox=w,s,e,n` | Month-level **detection history** from the archive, folded to ≤ r6 so history never resolves finer than the map. CC BY 4.0. |
+| `POST /internal/block` · `DELETE /internal/block/{hash}` | Block/unblock a device (audited). |
+| `POST /internal/retract` | Delete one day of reports/aggregates and re-fold that month (audited). |
+| `GET /internal/audit` | Recent operator actions. |
 | `GET /healthz` | Liveness plus a database check. |
 
 ### Display states (six)
@@ -79,6 +83,39 @@ docker compose down -v && docker compose up -d   # reset: the schema is H3-based
 | `clear_multi` | ≥2 devices, no detections | solid green |
 | `clear_single` | 1 device, no detections | hollow green |
 | *(no feature)* → `no_data` | no reports in this window | **grey** — explicitly not evidence of safety |
+
+## Moderation and the audit trail
+
+`/internal/*` mutates data, so it is **loopback-only by default**. Set a token to allow
+remote use; send it as `X-Raymap-Admin`.
+
+```bash
+# block a device (quota/poisoning), and unblock it again
+curl -X POST localhost:8000/internal/block -H 'content-type: application/json' \
+     -d '{"device_hash":"<hash>","reason":"poisoning"}'
+curl -X DELETE localhost:8000/internal/block/<hash>
+
+# retract a whole day (deletes its raw reports and aggregates, then re-folds that month)
+curl -X POST localhost:8000/internal/retract -H 'content-type: application/json' \
+     -d '{"day":"2026-11-02","reason":"bad upload"}'
+
+# what happened
+curl localhost:8000/internal/audit?limit=20
+```
+
+Retraction clears that month from `detection_months` and re-folds from what remains, so it
+is not undone by the monotonic fold. Every action is written to `audit_log`.
+
+## History exports (CC BY 4.0)
+
+```bash
+./.venv/bin/python scripts/export_history.py
+```
+
+Writes `ui/data/history/YYYY-MM.ndjson.gz` plus `index.json` (attribution, licence, per-month
+totals), served statically at `/data/history/…`. Detection cells only — presence data is not
+retained past 90 days. The files are generated, so they are gitignored; re-run monthly or
+after a retraction.
 
 ## Ingest protection
 
@@ -102,6 +139,7 @@ docker compose down -v && docker compose up -d   # reset: the schema is H3-based
 | `RAYMAP_QUOTA_RECORDS_HOUR` | `600` | per-device ingest quota |
 | `RAYMAP_HEX_RES` | `6` | default resolution when a request omits `res` |
 | `RAYMAP_POW_REQUIRED` | `1` | disable proof of work (local only) |
+| `RAYMAP_ADMIN_TOKEN` | *(unset)* | allow remote `/internal/*`; sent as `X-Raymap-Admin` |
 
 Ban a device: `INSERT INTO blocked_devices (device_hash, reason) VALUES ('<hash>', 'poisoning');`
 
@@ -129,6 +167,9 @@ Ban a device: `INSERT INTO blocked_devices (device_hash, reason) VALUES ('<hash>
 node --test ui/test_geo.js                            # 7 tests
 ./.venv/bin/python scripts/check_state_coverage.py    # geometry + coverage check
 ```
+
+CI runs the same on every push/PR, plus gitleaks and an advisory `pip-audit`.
+(`.github/workflows/ci.yml`)
 
 ## Hosting
 

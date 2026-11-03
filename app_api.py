@@ -19,10 +19,12 @@ import h3
 import json
 import logging
 import os
+import secrets
 import threading
 import time
 import zlib
 from contextlib import asynccontextmanager
+from datetime import date
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -41,6 +43,10 @@ logging.basicConfig(
 DATABASE_URL = os.environ.get(
     "DATABASE_URL", "postgresql://raymap:raymap@127.0.0.1:5433/raymap"
 )
+
+# /internal/* mutates data. It is loopback-only unless a token is configured;
+# set RAYMAP_ADMIN_TOKEN before exposing this host to a network.
+ADMIN_TOKEN = os.environ.get("RAYMAP_ADMIN_TOKEN", "")
 
 # Stored per report: r7 is the detection-archive key, r8 the original floor.
 HEX_RESOLUTIONS = tuple(range(3, 9))
@@ -105,6 +111,38 @@ def parse_bbox(value: Optional[str]) -> Optional[Tuple[float, float, float, floa
     except (TypeError, ValueError):
         return None
     return (min(w, e), min(s, n), max(w, e), max(s, n))
+
+
+def parse_month(value: Optional[str]) -> Optional[date]:
+    """Parse 'YYYY-MM' (or 'YYYY-MM-DD') into the first of that month."""
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value + "-01" if len(value) == 7 else value).replace(day=1)
+    except ValueError:
+        return None
+
+
+def admin_allowed(client_host: Optional[str], token: Optional[str]) -> bool:
+    """Admin endpoints mutate data: require the token when one is configured,
+    otherwise accept loopback callers only."""
+    if ADMIN_TOKEN:
+        return secrets.compare_digest(token or "", ADMIN_TOKEN)
+    hygienic = {"127.0.0.1", "::1", "localhost"}
+    return client_host in hygienic
+
+
+def fold_history(rows: List[Tuple[Any, ...]], res: int) -> Dict[Tuple[date, str], Tuple[int, int, Optional[Any]]]:
+    """Aggregate archive rows (month, cell@r7, detections, detecting devices,
+    last_report) up to `res`. Pure, so it can be unit tested."""
+    agg: Dict[Tuple[date, str], Tuple[int, int, Optional[Any]]] = {}
+    for month, cell, det, det_dev, last in rows:
+        parent = cell if h3.get_resolution(cell) == res else h3.cell_to_parent(cell, res)
+        key = (month, parent)
+        d, v, t = agg.get(key, (0, 0, None))
+        stamps = [x for x in (t, last) if x is not None]
+        agg[key] = (d + det, max(v, det_dev), max(stamps) if stamps else None)
+    return agg
 
 
 def h3_columns(lat: float, lng: float) -> Dict[str, str]:
@@ -457,19 +495,51 @@ def geojson(days: int = 30, res: int = DEFAULT_RES,
 # ---------------------------------------------------------------------------
 # Maintenance + health
 # ---------------------------------------------------------------------------
+def _guard(request: Request) -> Optional[JSONResponse]:
+    """/internal/* mutates data: loopback-only unless RAYMAP_ADMIN_TOKEN is set."""
+    host = request.client.host if request.client else None
+    if admin_allowed(host, request.headers.get("x-raymap-admin")):
+        return None
+    return JSONResponse(
+        {
+            "error": "admin endpoints are loopback-only",
+            "hint": "set RAYMAP_ADMIN_TOKEN and send X-Raymap-Admin for remote use",
+        },
+        status_code=403,
+    )
+
+
+def _audit(cur, action: str, details: Dict[str, Any]) -> None:
+    cur.execute(
+        "INSERT INTO audit_log (actor, action, details) VALUES ('operator', %s, %s);",
+        (action, json.dumps(details)),
+    )
+
+
 @app.post("/internal/refresh")
-def refresh(days: int = 30) -> JSONResponse:
+def refresh(request: Request, days: int = 30) -> JSONResponse:
+    denied = _guard(request)
+    if denied is not None:
+        return denied
     days = clamp_days(days)
     with _conn() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT refresh_daily_cells(%s);", (days,))
             cur.execute("SELECT fold_detection_months();")
+            _audit(cur, "refresh", {"days": days})
     return JSONResponse({"ok": True, "lookback_days": days})
 
 
 @app.post("/internal/maintain")
-def maintain() -> JSONResponse:
-    return JSONResponse({"ok": True, **maintain_once()})
+def maintain(request: Request) -> JSONResponse:
+    denied = _guard(request)
+    if denied is not None:
+        return denied
+    result = maintain_once()
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            _audit(cur, "maintain", result)
+    return JSONResponse({"ok": True, **result})
 
 
 @app.get("/healthz")
@@ -482,6 +552,190 @@ def healthz() -> JSONResponse:
     except psycopg.Error as exc:
         return JSONResponse({"status": "degraded", "error": str(exc)[:200]}, status_code=503)
     return JSONResponse({"status": "ok"})
+
+
+@app.post("/internal/block")
+async def block(request: Request) -> JSONResponse:
+    denied = _guard(request)
+    if denied is not None:
+        return denied
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return JSONResponse({"error": "invalid JSON body"}, status_code=400)
+    device_hash = str((body or {}).get("device_hash") or "").strip()
+    if not device_hash:
+        return JSONResponse({"error": "device_hash is required"}, status_code=400)
+    reason = str((body or {}).get("reason") or "")
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO blocked_devices (device_hash, reason) VALUES (%s, %s) "
+                "ON CONFLICT (device_hash) DO UPDATE SET reason = EXCLUDED.reason",
+                (device_hash, reason),
+            )
+            _audit(cur, "block_device", {"device_hash": device_hash, "reason": reason})
+    return JSONResponse({"ok": True, "blocked": device_hash})
+
+
+@app.delete("/internal/block/{device_hash}")
+def unblock(request: Request, device_hash: str) -> JSONResponse:
+    denied = _guard(request)
+    if denied is not None:
+        return denied
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM blocked_devices WHERE device_hash = %s", (device_hash,))
+            removed = cur.rowcount
+            _audit(cur, "unblock_device", {"device_hash": device_hash, "removed": removed})
+    return JSONResponse({"ok": True, "removed": removed})
+
+
+@app.post("/internal/retract")
+async def retract(request: Request) -> JSONResponse:
+    """Delete one day of reports and its aggregates (e.g. after poisoning).
+
+    The affected month is also cleared from the detection archive and re-folded
+    from what remains, so a retraction is not undone by the monotonic fold.
+    """
+    denied = _guard(request)
+    if denied is not None:
+        return denied
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return JSONResponse({"error": "invalid JSON body"}, status_code=400)
+    day_raw = str((body or {}).get("day") or "")
+    try:
+        day = date.fromisoformat(day_raw)
+    except ValueError:
+        return JSONResponse({"error": "day must be YYYY-MM-DD"}, status_code=400)
+    reason = str((body or {}).get("reason") or "")
+    month = day.replace(day=1)
+
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM reports WHERE ts::date = %s", (day,))
+            reports = cur.rowcount
+            cur.execute("DELETE FROM daily_cells WHERE day = %s", (day,))
+            cells = cur.rowcount
+            cur.execute("DELETE FROM detection_months WHERE month = %s", (month,))
+            cur.execute("SELECT refresh_daily_cells(%s);", (REFRESH_LOOKBACK_DAYS,))
+            cur.execute("SELECT fold_detection_months();")
+            _audit(
+                cur,
+                "retract_day",
+                {"day": str(day), "reason": reason,
+                 "reports_deleted": reports, "cells_deleted": cells},
+            )
+    return JSONResponse(
+        {"ok": True, "day": str(day), "reports_deleted": reports, "cells_deleted": cells}
+    )
+
+
+@app.get("/internal/audit")
+def audit_log(request: Request, limit: int = 100) -> JSONResponse:
+    denied = _guard(request)
+    if denied is not None:
+        return denied
+    limit = max(1, min(1000, limit))
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT at, actor, action, details FROM audit_log ORDER BY id DESC LIMIT %s",
+                (limit,),
+            )
+            rows = cur.fetchall()
+    return JSONResponse(
+        {
+            "events": [
+                {"at": r[0].isoformat(), "actor": r[1], "action": r[2], "details": r[3]}
+                for r in rows
+            ]
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Detection history (the searchable public record)
+# ---------------------------------------------------------------------------
+@app.get("/detections")
+def detections(start: Optional[str] = None, end: Optional[str] = None,
+               res: int = HEX_RES_MAX, min_devices: int = 1,
+               bbox: Optional[str] = None, limit: int = MAX_FEATURES) -> JSONResponse:
+    """Month-level detection history from the archive.
+
+    The archive is keyed at r7; rows are folded up to `res`, clamped to the same
+    3-6 band as the map so history can never resolve finer than the map does.
+    """
+    res = clamp_res(res)
+    box = parse_bbox(bbox)
+    start_month = parse_month(start)
+    end_month = parse_month(end)
+    if start and start_month is None:
+        return JSONResponse({"error": "start must be YYYY-MM"}, status_code=400)
+    if end and end_month is None:
+        return JSONResponse({"error": "end must be YYYY-MM"}, status_code=400)
+    limit = max(1, min(MAX_FEATURES, limit))
+    min_devices = max(1, min_devices)
+
+    query = (
+        "SELECT month, cell, detection_count, detection_device_count, last_report "
+        "FROM detection_months WHERE TRUE"
+    )
+    params: List[Any] = []
+    if start_month:
+        query += " AND month >= %s"
+        params.append(start_month)
+    if end_month:
+        query += " AND month <= %s"
+        params.append(end_month)
+    query += " ORDER BY month DESC LIMIT " + str(MAX_ROWS)
+
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, params)
+            rows = cur.fetchall()
+
+    agg = fold_history(rows, res)
+    features = []
+    for (month, cell), (det, det_dev, last) in sorted(
+        agg.items(), key=lambda kv: kv[1][0], reverse=True
+    ):
+        if det_dev < min_devices:
+            continue
+        lat, lng = h3.cell_to_latlng(cell)
+        if box and not (box[0] <= lng <= box[2] and box[1] <= lat <= box[3]):
+            continue
+        if len(features) >= limit:
+            break
+        status, confidence = classify(0, det_dev)
+        features.append(
+            {
+                "type": "Feature",
+                "properties": {
+                    "h3": cell,
+                    "res": res,
+                    "month": str(month),
+                    "detection_count": det,
+                    "detection_device_count": det_dev,
+                    "status": status,
+                    "confidence": confidence,
+                    "last_report": last.isoformat() if last else None,
+                },
+                "geometry": {"type": "Point", "coordinates": [lng, lat]},
+            }
+        )
+
+    return JSONResponse(
+        {
+            "type": "FeatureCollection",
+            "attribution": ATTRIBUTION,
+            "license": "CC BY 4.0",
+            "res": res,
+            "features": features,
+        }
+    )
 
 
 _UI_DIR = Path(__file__).resolve().parent / "ui"

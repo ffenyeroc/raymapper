@@ -156,3 +156,14 @@ CREATE TABLE IF NOT EXISTS blocked_devices (
     reason      text,
     blocked_at  timestamptz NOT NULL DEFAULT now()
 );
+
+-- ---------------------------------------------------------------------------
+-- Operator actions (moderation is auditable, even on a single-user host)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS audit_log (
+    id      bigserial PRIMARY KEY,
+    at      timestamptz NOT NULL DEFAULT now(),
+    actor   text NOT NULL DEFAULT 'operator',
+    action  text NOT NULL,
+    details jsonb
+);
