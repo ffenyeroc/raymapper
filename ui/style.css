@@ -53,31 +53,50 @@ html, body { margin: 0; height: 100%; font-family: -apple-system, system-ui, san
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #666; font-size: 11px; }
 
 /* --- site menu (About / Downloads) --------------------------------------- */
-/* <details> is used as-is: it is keyboard accessible and needs no JS to open. */
-.menu { position: relative; }
+/* <details> is used as-is: it is keyboard accessible and needs no JS to open.
+   Sits beside the wordmark; margin-right:auto keeps .controls pinned right. */
+.topbar .menu { position: relative; margin-right: auto; }
 .menu summary {
-  list-style: none; cursor: pointer; padding: 4px 10px; border-radius: 4px;
-  border: 1px solid #555; background: #2b3450; color: #fff; font-size: 13px;
+  list-style: none; cursor: pointer; padding: 5px 12px; border-radius: 6px;
+  border: 1px solid #8b9cbe; background: #3a4a6b; color: #fff;
+  font-size: 13px; font-weight: 700; letter-spacing: 0.4px;
+}
+.menu summary:hover, .menu summary:focus-visible {
+  background: #4a5d85; border-color: #b9c8e2;
 }
 .menu summary::-webkit-details-marker { display: none; }
-.menu summary::after { content: " ▾"; font-size: 10px; }
+.menu summary::after { content: " ▾"; font-size: 11px; color: #dde5f3; }
+.menu[open] summary { background: #4a5d85; border-color: #b9c8e2; }
 .menu[open] summary::after { content: " ▴"; }
 .menu nav {
-  position: absolute; right: 0; top: calc(100% + 6px); z-index: 20;
-  display: flex; flex-direction: column; min-width: 140px;
-  background: #232c42; border: 1px solid #555; border-radius: 6px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.4); overflow: hidden;
+  position: absolute; left: 0; top: calc(100% + 6px); z-index: 20;
+  display: flex; flex-direction: column; min-width: 170px;
+  background: #1b2233; border: 1px solid #8b9cbe; border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.55); overflow: hidden;
 }
 .menu nav a {
-  padding: 8px 12px; color: #dfe6f2; text-decoration: none; font-size: 13px;
+  padding: 11px 15px; color: #ffffff; text-decoration: none;
+  font-size: 14px; font-weight: 600;
 }
-.menu nav a:hover, .menu nav a:focus { background: #2f3a55; }
+.menu nav a + a { border-top: 1px solid #33405c; }
+.menu nav a:hover, .menu nav a:focus {
+  background: #33405c; text-decoration: underline; color: #fff;
+}
+@media (max-width: 720px) {
+  .menu summary { padding: 4px 8px; font-size: 12px; }
+  .menu nav { min-width: 145px; }
+}
 
 /* --- static pages (/about, /downloads) ----------------------------------- */
 body.page { background: #f6f7f9; color: #1b2230; }
 .topbar a { color: #fff; text-decoration: none; }
-.topbar .navlink { color: #cfd6e4; text-decoration: none; font-size: 13px; }
-.topbar .navlink:hover { color: #fff; text-decoration: underline; }
+.topbar .navlink {
+  color: #e8eefb; text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-color: rgba(232,238,251,0.45); font-size: 13px; font-weight: 600;
+}
+.topbar .navlink:hover, .topbar .navlink:focus {
+  color: #fff; text-decoration-color: #fff;
+}
 .prose {
   max-width: 720px; margin: 28px auto 64px; padding: 0 20px;
   font-size: 15px; line-height: 1.6;

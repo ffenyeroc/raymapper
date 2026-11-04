@@ -11,6 +11,13 @@
 <body>
   <header class="topbar">
     <h1>raymap</h1>
+    <details class="menu" id="menu">
+      <summary aria-label="Site menu">Menu</summary>
+      <nav>
+        <a href="/about">About</a>
+        <a href="/downloads">Downloads</a>
+      </nav>
+    </details>
     <div class="controls">
       <form id="search-form" class="search" role="search">
         <input id="search" type="search" placeholder="ZIP or City"
@@ -32,13 +39,6 @@
       <button id="refresh">Refresh</button>
       <span id="res-badge" class="badge">hex ≈ –</span>
       <span id="status" class="status"></span>
-      <details class="menu" id="menu">
-        <summary aria-label="Site menu">Menu</summary>
-        <nav>
-          <a href="/about">About</a>
-          <a href="/downloads">Downloads</a>
-        </nav>
-      </details>
     </div>
   </header>
 
