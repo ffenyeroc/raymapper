@@ -429,6 +429,11 @@ def main() -> None:
     preflight(serial)
 
     def run_once() -> None:
+        # Distinguish "hotspot unplugged" from "GPS/config unreadable": without
+        # this both show up as a silent skip in the log.
+        if serial not in adb_devices():
+            print(f"[{time.strftime('%H:%M:%S')}] hotspot not connected — waiting")
+            return
         config = parse_config(adb_cat(serial, DEVICE_CONFIG))
         batch = build_records(serial, config, args.lat, args.lon)
         if batch is None:
