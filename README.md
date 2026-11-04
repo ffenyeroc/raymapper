@@ -3,12 +3,12 @@
 **https://raymap.org** · [github.com/ffenyeroc/raymapper](https://github.com/ffenyeroc/raymapper)
 
 Hosts and visualizes crowdsourced Rayhunter hotspot detections as an **H3 hexagon mesh**
-over the US. Two supported deployments: a laptop (`uvicorn` + PostgreSQL 16 in Docker
-Compose, run by launchd) and a single small VPS (`deploy/provision.sh` installs PostgreSQL,
-systemd and nginx). The data path is the same either way.
+over the US. One small Ubuntu VPS runs everything — PostgreSQL 16, uvicorn and nginx,
+provisioned by `deploy/provision.sh` and served at `https://raymap.org`. Nothing is hosted
+from a workstation.
 
 > This repository holds both halves: the map service (everything at the root) and the
-> device client in [`collector/`](collector/README.md), which polls a USB-tethered hotspot
+> device client in [`collector/`](collector/README.md), which reads a USB-tethered hotspot
 > and uploads gzipped batches to `POST /ingest`.
 
 ## Privacy model
@@ -60,28 +60,36 @@ Aggregation and detection-folding run **before** pruning, so nothing is lost whe
   that place. Lookup is a vendored Census gazetteer (`ui/data/places.json.gz`, ~32k places and
   ~34k ZIPs) so queries never leave the browser — no geocoding service, no leaked IPs.
 
-## Running locally as a service
+## Deployment
 
-`./scripts/install_services.sh install` installs three launchd agents — the API (KeepAlive,
-bound to 127.0.0.1:8000), a 03:30 nightly `pg_dump`, and the device reader (posts every 15
-minutes while a Rayhunter hotspot is attached, waits quietly when none is) — so the
-deployment survives reboots and the database is backed up. Configuration lives in `.env`
-(copy `.env.example`).
-
-Start/stop, backups, restore drills, moderation, upgrades and troubleshooting are in
-[`RUNBOOK.md`](RUNBOOK.md).
-
-## Local development
+One Ubuntu 24.04 VPS: PostgreSQL 16, uvicorn behind nginx, certbot for TLS.
 
 ```bash
-cd /Users/admin/raymap-map
+sudo ./deploy/provision.sh /path/to/raymapper
+# DNS: raymap.org and api.raymap.org → the instance IP
+sudo certbot --nginx -d raymap.org -d api.raymap.org
+```
+
+`provision.sh` installs the packages, creates the database and service user, writes `.env`
+with a generated DB password and admin token, applies the schema, and enables
+`raymap-api.service` plus the nightly `raymap-backup.timer`. The deployment runs the app's
+own maintenance loop for aggregation and retention; a managed cloud variant is not
+implemented and nothing depends on one.
+
+Upgrades, backups and restore drills, moderation, TLS renewal and troubleshooting are in
+[`RUNBOOK.md`](RUNBOOK.md).
+
+## Development
+
+Running the code against a local PostgreSQL in Docker — for contributing, not for hosting.
+
+```bash
+git clone https://github.com/ffenyeroc/raymapper && cd raymapper
 python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
 
-docker compose down -v && docker compose up -d   # reset: the schema is H3-based
+docker compose up -d                             # PostgreSQL 16 on 127.0.0.1:5433
 ./.venv/bin/python seed.py --cluster             # schema + clustered sample reports
 ./.venv/bin/python -m uvicorn app_api:app --port 8000 --app-dir .
-
-# Open http://localhost:8000
 ```
 
 ## API
@@ -110,21 +118,25 @@ docker compose down -v && docker compose up -d   # reset: the schema is H3-based
 
 ## Moderation and the audit trail
 
-`/internal/*` mutates data, so it is **loopback-only by default**. Set a token to allow
-remote use; send it as `X-Raymap-Admin`.
+`/internal/*` mutates data: it is **loopback-only unless `RAYMAP_ADMIN_TOKEN` is set**, which
+is mandatory on the deployment because the reverse proxy makes every caller look local. Send
+the token as `X-Raymap-Admin`.
 
 ```bash
+TOKEN=$(sudo grep ^RAYMAP_ADMIN_TOKEN /opt/raymap/.env | cut -d= -f2)
+API=https://api.raymap.org
+
 # block a device (quota/poisoning), and unblock it again
-curl -X POST localhost:8000/internal/block -H 'content-type: application/json' \
+curl -X POST $API/internal/block -H "X-Raymap-Admin: $TOKEN" -H 'content-type: application/json' \
      -d '{"device_hash":"<hash>","reason":"poisoning"}'
-curl -X DELETE localhost:8000/internal/block/<hash>
+curl -X DELETE $API/internal/block/<hash> -H "X-Raymap-Admin: $TOKEN"
 
 # retract a whole day (deletes its raw reports and aggregates, then re-folds that month)
-curl -X POST localhost:8000/internal/retract -H 'content-type: application/json' \
+curl -X POST $API/internal/retract -H "X-Raymap-Admin: $TOKEN" -H 'content-type: application/json' \
      -d '{"day":"2026-11-02","reason":"bad upload"}'
 
 # what happened
-curl localhost:8000/internal/audit?limit=20
+curl $API/internal/audit?limit=20 -H "X-Raymap-Admin: $TOKEN"
 ```
 
 Retraction clears that month from `detection_months` and re-folds from what remains, so it
@@ -151,9 +163,9 @@ after a retraction.
 | Per-device quota | 600 records/hour → **429** |
 | Blocklist | `blocked_devices` table → **403** |
 
-`RAYMAP_POW_REQUIRED=0` disables the check — only for a throwaway local box.
+`RAYMAP_POW_REQUIRED=0` disables the check — development only, never on the deployment.
 
-## Local hosting knobs
+## Operational knobs
 
 | Env var | Default | Purpose |
 |---|---|---|
@@ -162,8 +174,10 @@ after a retraction.
 | `RAYMAP_CELL_RETAIN_DAYS` | `90` | daily-cell retention |
 | `RAYMAP_QUOTA_RECORDS_HOUR` | `600` | per-device ingest quota |
 | `RAYMAP_HEX_RES` | `6` | default resolution when a request omits `res` |
-| `RAYMAP_POW_REQUIRED` | `1` | disable proof of work (local only) |
-| `RAYMAP_ADMIN_TOKEN` | *(unset)* | allow remote `/internal/*`; sent as `X-Raymap-Admin` |
+| `RAYMAP_POW_REQUIRED` | `1` | disable proof of work — development only |
+| `RAYMAP_ADMIN_TOKEN` | *(unset)* | **required on the deployment**: authorises `/internal/*` behind the proxy |
+
+These are read from `/opt/raymap/.env` on the server (see [`RUNBOOK.md`](RUNBOOK.md#configuration)).
 
 Ban a device: `INSERT INTO blocked_devices (device_hash, reason) VALUES ('<hash>', 'poisoning');`
 
@@ -171,7 +185,7 @@ Ban a device: `INSERT INTO blocked_devices (device_hash, reason) VALUES ('<hash>
 
 | File | Purpose |
 |---|---|
-| `schema.sql` | PostGIS + H3 `reports`, `daily_cells(day,res,cell)`, `detection_months`, refresh/fold/prune |
+| `schema.sql` | H3 `reports`, `daily_cells(day,res,cell)`, `detection_months`, refresh/fold/prune |
 | `app_api.py` | FastAPI: `/ingest`, `/geojson`, `/internal/*`, `/healthz`, serves `ui/` |
 | `ui/app.js` | Hex mesh, res-by-zoom, six display states |
 | `ui/geo.js` | Point-in-polygon, bbox helpers, zoom→res ladder (dependency-free, node-tested) |
@@ -190,8 +204,8 @@ Ban a device: `INSERT INTO blocked_devices (device_hash, reason) VALUES ('<hash>
 | `.github/workflows/release.yml` | Tag `v*` → builds the collector for 4 platforms, attaches to the Release |
 | `scripts/check_state_coverage.py` | Per-state cell counts + mesh coverage check |
 | `scripts/build_places.py` | Rebuilds `ui/data/places.json.gz` from the Census gazetteer (`--download`) |
-| `launchd/`, `scripts/install_services.sh` | launchd agents for the API, nightly backups and the device reader |
-| `scripts/backup_db.sh` / `scripts/run_api.sh` | `pg_dump` with pruning / service entry point |
+| `launchd/`, `scripts/install_services.sh` | Optional macOS agent for keeping the collector running in the background |
+| `scripts/backup_db.sh` / `scripts/run_api.sh` | `pg_dump` with pruning / uvicorn launcher used by the macOS agents |
 | `RUNBOOK.md` | Operations: start/stop, backups, restore drill, moderation, upgrades |
 | `test_api.py`, `test_adb.py`, `tests/test_geo.js`, `tests/test_search.js`, `tests/test_downloads.js` | Unit tests |
 | `LICENSE` / `LICENSE-DATA` / `NOTICE` | Apache-2.0 code, CC BY 4.0 data, third-party attribution |
@@ -216,9 +230,10 @@ rewrites the header would double-decompress it; if that is unavoidable, serve a 
 
 ## Hosting
 
-Local: uvicorn serves the API + UI and the app's own maintenance loop handles aggregation and
-retention, on a laptop (PostgreSQL in Docker Compose) or a single VPS. A managed cloud variant
-(Cloud Run + Cloud SQL + Cloud Scheduler) is not implemented; nothing here depends on it.
+A single Ubuntu 24.04 instance runs PostgreSQL 16, uvicorn and nginx, with the app's own
+maintenance loop handling aggregation and retention. `deploy/provision.sh` builds that host
+from scratch; `deploy/` holds the systemd units, the nginx site and the per-IP ingest limit.
+Downloads for the collector are served from GitHub Releases, never from the instance.
 
 ## License
 
