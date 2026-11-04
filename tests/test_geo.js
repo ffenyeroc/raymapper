@@ -1,7 +1,7 @@
 // node --test ui/test_geo.js — pure geometry helpers, no browser needed.
 const test = require("node:test");
 const assert = require("node:assert");
-const geo = require("./geo.js");
+const geo = require("../ui/geo.js");
 
 const square = (w, s, e, n) => ({
   type: "Feature",

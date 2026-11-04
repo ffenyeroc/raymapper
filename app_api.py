@@ -298,8 +298,11 @@ app = FastAPI(title="raymap-map API", version="0.3.1", lifespan=lifespan)
 # Local hosting: same origin. Tighten if the UI is ever served elsewhere.
 app.add_middleware(
     CORSMiddleware,
+    # Public aggregate data (CC BY 4.0) is meant to be reusable, so any origin may
+    # read it. Mutating verbs are withheld: they only serve /internal/*, which no
+    # browser should ever reach, and a preflight now refuses them.
     allow_origins=["*"],
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 

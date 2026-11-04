@@ -1,20 +1,20 @@
-# raymap-collector (macOS)
+# raymap-collector
 
-A **pure-Python + `requests`** dev version of the USB collector for the
-[crowdsourced Rayhunter map](https://github.com/EFForg/rayhunter) project.
+The device client for [raymapper](https://raymap.org): it reads a hotspot running
+[Rayhunter](https://github.com/EFForg/rayhunter) and uploads one compact status record per
+cycle to the map.
 
 > Part of the raymapper monorepo: this directory is the device client, the map service is
 > at the repository root. Run everything below from `collector/`.
 
-It polls the Rayhunter daemon on a **USB-tethered Orbic RC400L** over the local
-`:8080` API, then periodically uploads compact, gzipped JSON status records to
-a map server. It is station-local: the computer talks to the hotspot over USB
-(no mobile-data cost for telemetry) and pushes aggregated updates over its own
-internet connection.
+It talks to the hotspot over USB and uploads over the computer's own internet connection —
+no mobile data, and nothing about the device's identity leaves the machine.
 
-> This is the **development** build. It assumes Python + `requests` are
-> available (use the included venv). A distribution-ready, dependency-free
-> `.app` bundle for non-technical users comes later.
+> **Shipped builds** are self-contained binaries attached to
+> [GitHub Releases](https://github.com/ffenyeroc/raymapper/releases): unpack, run
+> `./raymapper-collector --version`, then let it run. `adb` is bundled, and the only
+> requirement is a hotspot with Rayhunter installed and USB debugging enabled. Running from
+> this source tree (below) is for development.
 
 ---
 
@@ -106,8 +106,9 @@ Records look like (after gzipping and hashing the device id):
 }
 ```
 
-`rssi_dbm`, `detection`, and `network` are placeholders for v1 — they will be
-populated once the corresponding Rayhunter endpoints are confirmed.
+`rssi_dbm`, `detection`, and `network` are populated where the corresponding Rayhunter
+endpoint provides them, and left null otherwise — a null means "not reported", not "no
+detection".
 
 ## Design points
 - **Precedence of transport**: device is polled over USB (cheap, reliable); only

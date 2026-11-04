@@ -22,7 +22,7 @@ cp .env.example .env                      # then set RAYMAP_ADMIN_TOKEN
 ./scripts/run_api.sh                      # API + UI on 127.0.0.1:8000
 
 ./.venv/bin/python -m unittest -q test_api test_adb
-node ui/test_geo.js && node ui/test_search.js
+node --test tests/test_geo.js tests/test_search.js tests/test_downloads.js
 node --check ui/app.js                    # syntax check, no build step
 
 cd collector && ./.venv/bin/python -m unittest -q test_collector   # device client
@@ -36,7 +36,7 @@ JavaScript with vendored H3 and MapLibre — do not introduce a bundler or a fra
 ## Tests
 
 New non-trivial logic (a parser, a loop over data, anything touching ingest or moderation)
-needs a test in `test_api.py` or `ui/test_*.js`. Trivial edits do not.
+needs a test in `test_api.py` or `tests/test_*.js`. Trivial edits do not.
 
 ## Licences
 

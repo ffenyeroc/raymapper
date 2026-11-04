@@ -96,6 +96,8 @@ else
   ln -sf /etc/nginx/sites-available/raymap /etc/nginx/sites-enabled/raymap
   rm -f /etc/nginx/sites-enabled/default
 fi
+# The limit zone must live in the http{} context, hence conf.d rather than the site.
+install -m 644 "$APP/deploy/nginx-limits.conf" /etc/nginx/conf.d/raymap-limits.conf
 nginx -t
 systemctl reload nginx
 

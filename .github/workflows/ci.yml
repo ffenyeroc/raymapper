@@ -31,7 +31,7 @@ jobs:
         with:
           node-version: "22"
       - name: UI geometry tests
-        run: node --test ui/test_geo.js ui/test_search.js ui/test_downloads.js
+        run: node --test tests/test_geo.js tests/test_search.js tests/test_downloads.js
 
   secret-scan:
     name: gitleaks secret scan

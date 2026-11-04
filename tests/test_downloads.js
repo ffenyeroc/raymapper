@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert");
-const dl = require("./downloads.js");
+const dl = require("../ui/downloads.js");
 
 const good = () => ({
   version: "1.0.0",

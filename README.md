@@ -180,7 +180,7 @@ Ban a device: `INSERT INTO blocked_devices (device_hash, reason) VALUES ('<hash>
 | `ui/data/us_states.geojson` | US land/states boundary, vendored (Census, public domain, simplified) |
 | `ui/vendor_h3-js.js` / `ui/vendor_maplibre-gl.js` | Vendored H3 4.5.0 and MapLibre 3.6.2 (no CDN) |
 | `seed.py` | Schema apply + simulated reports (`--cluster` for realistic density) |
-| `adb_reader.py` | Interim path: pull device data over ADB and post to `/ingest` |
+| `adb_reader.py` | The collector: reads the hotspot over ADB and posts to `/ingest` — this is what the release installers build |
 | `scripts/migrate_to_hex.py` | One-time geohash→H3 migration (presence rebuilt, archive preserved) |
 | `scripts/migrate_drop_r8.py` | One-time drop of the unused `h3_r8` column |
 | `scripts/prune_device_qmdl.sh` | Prune raw device captures (`--keep N`, dry-run by default) |
@@ -193,14 +193,14 @@ Ban a device: `INSERT INTO blocked_devices (device_hash, reason) VALUES ('<hash>
 | `launchd/`, `scripts/install_services.sh` | launchd agents for the API, nightly backups and the device reader |
 | `scripts/backup_db.sh` / `scripts/run_api.sh` | `pg_dump` with pruning / service entry point |
 | `RUNBOOK.md` | Operations: start/stop, backups, restore drill, moderation, upgrades |
-| `test_api.py`, `test_adb.py`, `ui/test_geo.js`, `ui/test_search.js` | Unit tests |
+| `test_api.py`, `test_adb.py`, `tests/test_geo.js`, `tests/test_search.js`, `tests/test_downloads.js` | Unit tests |
 | `LICENSE` / `LICENSE-DATA` / `NOTICE` | Apache-2.0 code, CC BY 4.0 data, third-party attribution |
 
 ## Tests
 
 ```bash
 ./.venv/bin/python -m unittest -q test_api test_adb   # 34 tests
-node --test ui/test_geo.js ui/test_search.js          # 14 tests
+node --test tests/test_geo.js tests/test_search.js tests/test_downloads.js   # 19 tests
 ./.venv/bin/python scripts/check_state_coverage.py    # geometry + coverage check
 ```
 
@@ -216,10 +216,9 @@ rewrites the header would double-decompress it; if that is unavoidable, serve a 
 
 ## Hosting
 
-Local: uvicorn serves the API + UI, PostGIS runs in Docker Compose, and the app's own
-maintenance loop handles aggregation and retention. The cloud path (Cloud Run + Cloud SQL +
-Cloud Storage + Cloud Scheduler, with an HCP Terraform workspace) is deferred; nothing here
-depends on it.
+Local: uvicorn serves the API + UI and the app's own maintenance loop handles aggregation and
+retention, on a laptop (PostgreSQL in Docker Compose) or a single VPS. A managed cloud variant
+(Cloud Run + Cloud SQL + Cloud Scheduler) is not implemented; nothing here depends on it.
 
 ## License
 

@@ -1,7 +1,7 @@
 // node --test ui/test_search.js — offline lookup helpers.
 const test = require("node:test");
 const assert = require("node:assert");
-const search = require("./search.js");
+const search = require("../ui/search.js");
 
 const db = {
   meta: { places: 2, zips: 1 },

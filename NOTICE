@@ -28,5 +28,9 @@ Basemap tiles and style ("liberty") are served by OpenFreeMap:
 Rayhunter (https://github.com/EFForg/rayhunter) is a separate GPL-3.0 program.
 This project talks to its local HTTP API; no Rayhunter code is included here.
 
+Android platform-tools (`adb`) — bundled inside the collector installers
+  Copyright (C) The Android Open Source Project — Apache-2.0
+  https://developer.android.com/tools/releases/platform-tools
+
 Aggregate data published by this project is licensed CC BY 4.0 — see LICENSE-DATA.
 Code is licensed Apache-2.0 — see LICENSE.

@@ -30,6 +30,8 @@ else
   : "${DATABASE_URL:?DATABASE_URL must be set when there is no raymap_db container}"
   pg_dump "$DATABASE_URL" --clean --if-exists | gzip -9 > "$OUT"
 fi
+# A dump holds every stored report; it should not be world-readable on a shared box.
+chmod 600 "$OUT"
 echo "$(date -u +%FT%TZ) wrote $OUT ($(du -h "$OUT" | cut -f1))"
 
 ls -1t "$BACKUP_DIR"/raymap-*.sql.gz | tail -n +"$((KEEP + 1))" | while read -r old; do
