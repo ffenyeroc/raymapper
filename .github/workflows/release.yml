@@ -77,7 +77,8 @@ jobs:
         shell: bash
         run: |
           BIN=dist/raymapper-collector/raymapper-collector
-          [ -f "$BIN.exe" ] && BIN="$BIN.exe"
+          # Not `[ -f x ] && BIN=x`: under `bash -e` a false test aborts the step.
+          if [ -f "$BIN.exe" ]; then BIN="$BIN.exe"; fi
           "$BIN" --version | tee version.txt
           grep -q "raymap-collector 1\." version.txt
 
