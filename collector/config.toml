@@ -5,8 +5,9 @@
 # used (stdlib) so no extra parser dependency is required.
 # ==========================================================================
 
-# Where the collector POSTs gzipped batches. Leave empty to only log/queue
-# locally during development (nothing is sent).
+# Where the collector POSTs gzipped batches, e.g. https://api.raymap.org/ingest
+# Leave empty to only log/queue locally during development (nothing is sent,
+# the queue stays on disk and is capped).
 server_url = ""
 
 # Stable identifier for this hotspot+computer pair. If empty, a random id is

@@ -1,0 +1,11 @@
+[Unit]
+Description=raymap nightly database backup
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=raymap
+Group=raymap
+WorkingDirectory=/opt/raymap
+EnvironmentFile=/opt/raymap/.env
+ExecStart=/opt/raymap/scripts/backup_db.sh

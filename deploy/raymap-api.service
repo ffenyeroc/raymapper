@@ -1,0 +1,32 @@
+[Unit]
+Description=raymap API + hex map UI
+Documentation=https://github.com/ffenyeroc/raymapper
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=raymap
+Group=raymap
+WorkingDirectory=/opt/raymap
+EnvironmentFile=/opt/raymap/.env
+# --proxy-headers makes request.client.host the real caller so the loopback
+# admin exemption keeps working; app_api._guard also refuses the exemption
+# whenever proxy headers are present, so a mistyped flag fails closed.
+ExecStart=/opt/raymap/.venv/bin/python -m uvicorn app_api:app \
+    --host 127.0.0.1 --port 8000 --app-dir /opt/raymap \
+    --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=always
+RestartSec=5
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/raymap
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

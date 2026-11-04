@@ -80,7 +80,7 @@ CELL_RETAIN_DAYS = int(os.environ.get("RAYMAP_CELL_RETAIN_DAYS", 90))
 REFRESH_LOOKBACK_DAYS = int(os.environ.get("RAYMAP_REFRESH_LOOKBACK_DAYS", 30))
 MAINTAIN_INTERVAL_S = int(os.environ.get("RAYMAP_MAINTAIN_INTERVAL_S", 300))
 
-ATTRIBUTION = "Raymap aggregate data (c) contributors, CC BY 4.0"
+ATTRIBUTION = "Raymap aggregate data (c) contributors, CC BY 4.0 — https://raymap.org"
 
 
 # ---------------------------------------------------------------------------
@@ -124,11 +124,20 @@ def parse_month(value: Optional[str]) -> Optional[date]:
         return None
 
 
-def admin_allowed(client_host: Optional[str], token: Optional[str]) -> bool:
+def admin_allowed(
+    client_host: Optional[str], token: Optional[str], proxied: bool = False
+) -> bool:
     """Admin endpoints mutate data: require the token when one is configured,
-    otherwise accept loopback callers only."""
+    otherwise accept loopback callers only.
+
+    `proxied` means proxy headers were present, so `client_host` is the proxy's
+    loopback address and proves nothing about the caller. Behind nginx or a
+    tunnel, trust the token only — the loopback exemption is off.
+    """
     if ADMIN_TOKEN:
         return secrets.compare_digest(token or "", ADMIN_TOKEN)
+    if proxied:
+        return False
     hygienic = {"127.0.0.1", "::1", "localhost"}
     return client_host in hygienic
 
@@ -495,15 +504,20 @@ def geojson(days: int = 30, res: int = DEFAULT_RES,
 # ---------------------------------------------------------------------------
 # Maintenance + health
 # ---------------------------------------------------------------------------
+PROXY_HEADERS = ("x-forwarded-for", "forwarded", "cf-connecting-ip", "x-real-ip")
+
+
 def _guard(request: Request) -> Optional[JSONResponse]:
     """/internal/* mutates data: loopback-only unless RAYMAP_ADMIN_TOKEN is set."""
     host = request.client.host if request.client else None
-    if admin_allowed(host, request.headers.get("x-raymap-admin")):
+    proxied = any(h in request.headers for h in PROXY_HEADERS)
+    if admin_allowed(host, request.headers.get("x-raymap-admin"), proxied):
         return None
     return JSONResponse(
         {
             "error": "admin endpoints are loopback-only",
-            "hint": "set RAYMAP_ADMIN_TOKEN and send X-Raymap-Admin for remote use",
+            "hint": "set RAYMAP_ADMIN_TOKEN and send X-Raymap-Admin for remote use "
+            "(required behind a reverse proxy)",
         },
         status_code=403,
     )

@@ -15,7 +15,7 @@ from pathlib import Path
 # Defaults that are overridden by anything present in the config file.
 DEFAULTS: dict = {
     # Where the collector POSTs its gzipped batches. Empty = never upload
-    # (just log + queue locally), which is useful during development.
+    # (records are kept locally instead of being dropped).
     "server_url": "",
     # Stable local identifier for this hotspot+computer pair. If empty, a
     # persistent random id is generated once and stored in the state file.

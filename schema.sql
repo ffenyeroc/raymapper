@@ -1,19 +1,19 @@
 -- ============================================================================
--- raymap schema — Postgres + PostGIS + H3 (res 3..8)
+-- raymap schema — Postgres 16 + H3 (res 3..7 stored, r3..r6 served)
 --
 -- Privacy model: NO precise coordinates are ever stored. Ingest snaps each
--- report to H3 cells at resolutions 3..8 and discards lat/lon.
+-- report to H3 cells and discards lat/lon.
 --   r3   12,393 km2  ~138 km across   (national view)
---   r4    1,770 km2  ~52 km
---   r5      253 km2  ~20 km
---   r6       36 km2  ~7.4 km
---   r7      5.2 km2  ~2.8 km
---   r7     5.2 km2   ~2.8 km           (detection-archive key; finest stored)
+--   r4    1,770 km2   ~52 km
+--   r5      253 km2   ~20 km
+--   r6       36 km2  ~7.4 km           (finest cell served)
+--   r7      5.2 km2   ~2.8 km          (detection-archive key; finest stored)
 --
 -- Retention: raw 72h, daily cells 90d, detection months indefinite.
 -- ============================================================================
 
-CREATE EXTENSION IF NOT EXISTS postgis;
+-- No PostGIS: cells are H3 strings and the API computes centroids in Python,
+-- so a stock PostgreSQL install is enough (Ubuntu 24.04 / postgres:16).
 
 -- Dev note: M2 changed the key from geohash to H3. Existing installs run
 -- scripts/migrate_to_hex.py (presence history is rebuilt from raw reports; the

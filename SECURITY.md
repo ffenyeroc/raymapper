@@ -14,8 +14,8 @@ Functional bugs (rendering, search index, docs) are ordinary issues.
 ## Reporting
 
 Use **GitHub's private vulnerability reporting** — the *Security* tab → *Report a
-vulnerability* — rather than a public issue. Include your version (`/openapi.json`), the
-request or code path, and what data was exposed.
+vulnerability* — or email **security@raymap.org**, rather than opening a public issue.
+Include your version (`/openapi.json`), the request or code path, and what data was exposed.
 
 Expect an acknowledgement within a week. This is a volunteer project with no paid on-call, so
 there is no SLA beyond that; privacy fixes outrank every other kind of work.

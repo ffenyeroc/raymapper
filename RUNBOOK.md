@@ -4,7 +4,7 @@
 
 | Component | Managed by | Logs |
 |---|---|---|
-| PostGIS database | Docker Compose (`restart: unless-stopped`) | `docker logs raymap_db` |
+| PostgreSQL 16 | Docker Compose (`restart: unless-stopped`) | `docker logs raymap_db` |
 | API + map UI | launchd `org.raymap.api` (KeepAlive, binds 127.0.0.1:8000) | `~/Library/Logs/raymap-api.log` |
 | Nightly backup | launchd `org.raymap.backup` (03:30) | `~/Library/Logs/raymap-backup.log` |
 | Device reader | launchd `org.raymap.device` (posts every 15 min while a hotspot is attached) | `~/Library/Logs/raymap-device.log` |
@@ -97,6 +97,52 @@ docker exec raymap_db psql -U raymap -d raymap_restore_test -tAc \
   "select (select count(*) from reports), (select count(*) from daily_cells), (select count(*) from detection_months)"
 docker exec raymap_db psql -U raymap -d postgres -c 'DROP DATABASE raymap_restore_test'
 ```
+
+## Deploy to a public VPS (Ubuntu 24.04)
+
+The launchd setup above is for a laptop. A public instance is one small VPS running
+PostgreSQL 16, uvicorn and nginx — no Docker, and no PostGIS (cells are H3 strings and
+centroids are computed in Python, so a stock PostgreSQL is enough).
+
+```bash
+# on the server, from a checkout of this repo
+sudo ./deploy/provision.sh /path/to/raymapper
+```
+
+That installs the packages, creates the `raymap` user and database, rsyncs the app into
+`/opt/raymap`, writes `.env` with a generated DB password **and admin token**, applies
+`schema.sql`, enables `raymap-api.service` plus the `raymap-backup.timer`, and installs the
+nginx site. It prints the two DNS records to create:
+
+```
+raymap.org      A  <server ip>
+api.raymap.org  A  <server ip>
+```
+
+Then, once DNS resolves:
+
+```bash
+certbot --nginx -d raymap.org -d api.raymap.org   # adds TLS + the 80→443 redirect
+curl -s https://api.raymap.org/healthz            # {"status":"ok"}
+```
+
+The map UI and the API are the same process, so both names proxy to it and the collector's
+endpoint is `https://api.raymap.org/ingest`.
+
+### Things that are different from the laptop
+
+- **`RAYMAP_ADMIN_TOKEN` is mandatory.** Behind nginx, every request arrives from
+  `127.0.0.1`, so the loopback exemption would otherwise hand `/internal/*` to the whole
+  internet. `_guard()` now refuses that exemption whenever proxy headers are present, so an
+  unset token fails closed instead of open.
+- **`access_log off` in nginx.** A contributor's IP address is the one piece of metadata this
+  project deliberately does not keep, so the edge must not record it either.
+- **Logs go to the journal**: `journalctl -u raymap-api -f`.
+- **Backups** land in `/var/backups/raymap` (14 kept), run by
+  `systemctl list-timers raymap-backup.timer`. The script prefers the Docker container when
+  it exists and falls back to `pg_dump "$DATABASE_URL"` otherwise.
+- **Upgrades**: re-run `provision.sh` (rsync excludes `.env` and the history exports), then
+  `systemctl restart raymap-api`.
 
 ## Moderation
 

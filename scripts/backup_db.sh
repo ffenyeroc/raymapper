@@ -18,12 +18,18 @@ mkdir -p "$BACKUP_DIR"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 OUT="$BACKUP_DIR/raymap-$STAMP.sql.gz"
 
-if ! docker exec raymap_db pg_isready -U raymap -d raymap >/dev/null 2>&1; then
-  echo "$(date -u +%FT%TZ) database not reachable; backup skipped" >&2
-  exit 1
+if command -v docker >/dev/null 2>&1 && docker ps --format '{{.Names}}' 2>/dev/null | grep -qx raymap_db; then
+  # Local dev: the database lives in the compose container.
+  if ! docker exec raymap_db pg_isready -U raymap -d raymap >/dev/null 2>&1; then
+    echo "$(date -u +%FT%TZ) database not reachable; backup skipped" >&2
+    exit 1
+  fi
+  docker exec raymap_db pg_dump -U raymap -d raymap --clean --if-exists | gzip -9 > "$OUT"
+else
+  # VPS: PostgreSQL runs on the host, DATABASE_URL points at it.
+  : "${DATABASE_URL:?DATABASE_URL must be set when there is no raymap_db container}"
+  pg_dump "$DATABASE_URL" --clean --if-exists | gzip -9 > "$OUT"
 fi
-
-docker exec raymap_db pg_dump -U raymap -d raymap --clean --if-exists | gzip -9 > "$OUT"
 echo "$(date -u +%FT%TZ) wrote $OUT ($(du -h "$OUT" | cut -f1))"
 
 ls -1t "$BACKUP_DIR"/raymap-*.sql.gz | tail -n +"$((KEEP + 1))" | while read -r old; do

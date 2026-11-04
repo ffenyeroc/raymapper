@@ -1,8 +1,11 @@
 # raymapper — ingest, aggregation and hex map UI
 
+**https://raymap.org** · [github.com/ffenyeroc/raymapper](https://github.com/ffenyeroc/raymapper)
+
 Hosts and visualizes crowdsourced Rayhunter hotspot detections as an **H3 hexagon mesh**
-over the US. Hosted locally for now: uvicorn + PostGIS in Docker Compose. The cloud path
-(Cloud Run + Cloud SQL + Cloud Storage) is deferred until the project moves off localhost.
+over the US. Two supported deployments: a laptop (`uvicorn` + PostgreSQL 16 in Docker
+Compose, run by launchd) and a single small VPS (`deploy/provision.sh` installs PostgreSQL,
+systemd and nginx). The data path is the same either way.
 
 > This repository holds both halves: the map service (everything at the root) and the
 > device client in [`collector/`](collector/README.md), which polls a USB-tethered hotspot
@@ -181,6 +184,7 @@ Ban a device: `INSERT INTO blocked_devices (device_hash, reason) VALUES ('<hash>
 | `scripts/migrate_to_hex.py` | One-time geohash→H3 migration (presence rebuilt, archive preserved) |
 | `scripts/migrate_drop_r8.py` | One-time drop of the unused `h3_r8` column |
 | `scripts/prune_device_qmdl.sh` | Prune raw device captures (`--keep N`, dry-run by default) |
+| `deploy/` | VPS deployment: `provision.sh`, systemd units, nginx site |
 | `scripts/check_state_coverage.py` | Per-state cell counts + mesh coverage check |
 | `scripts/build_places.py` | Rebuilds `ui/data/places.json.gz` from the Census gazetteer (`--download`) |
 | `launchd/`, `scripts/install_services.sh` | launchd agents for the API, nightly backups and the device reader |

@@ -251,6 +251,9 @@ class TestAdminGuard(unittest.TestCase):
             self.assertTrue(app_api.admin_allowed("127.0.0.1", None))
             self.assertTrue(app_api.admin_allowed("::1", None))
             self.assertFalse(app_api.admin_allowed("10.0.0.5", None))
+            # Behind a reverse proxy the host is the proxy's loopback address and
+            # proves nothing, so the exemption must not apply.
+            self.assertFalse(app_api.admin_allowed("127.0.0.1", None, proxied=True))
         finally:
             app_api.ADMIN_TOKEN = saved
 
@@ -261,6 +264,7 @@ class TestAdminGuard(unittest.TestCase):
             self.assertTrue(app_api.admin_allowed("10.0.0.5", "s3cret"))
             self.assertFalse(app_api.admin_allowed("10.0.0.5", "nope"))
             self.assertFalse(app_api.admin_allowed("127.0.0.1", None))
+            self.assertTrue(app_api.admin_allowed("127.0.0.1", "s3cret", proxied=True))
         finally:
             app_api.ADMIN_TOKEN = saved
 
