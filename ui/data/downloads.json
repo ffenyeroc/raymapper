@@ -1,40 +1,39 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "endpoint": "https://api.raymap.org/ingest",
-  "release_url": "https://github.com/ffenyeroc/raymapper/releases/tag/v1.0.0",
+  "release_url": "https://github.com/ffenyeroc/raymapper/releases/tag/v1.0.1",
   "artifacts": [
     {
       "platform": "macOS",
       "arch": "Apple Silicon",
-      "file": "raymapper-collector-1.0.0-macos-arm64.tar.gz",
-      "size": 18769397,
-      "sha256": "9ed53e3220f1a8fe58b85ff6f87171c244a85832e47e9526524f476c95c602d3",
-      "url": "https://github.com/ffenyeroc/raymapper/releases/download/v1.0.0/raymapper-collector-1.0.0-macos-arm64.tar.gz"
+      "file": "raymapper-collector-1.0.1-macos-arm64.tar.gz",
+      "size": 18770264,
+      "sha256": "330994e7e28442c192b706586cc47d8efec66413b7c5ad7fa72855e6dc0af4c3",
+      "url": "https://github.com/ffenyeroc/raymapper/releases/download/v1.0.1/raymapper-collector-1.0.1-macos-arm64.tar.gz"
     },
     {
       "platform": "macOS",
       "arch": "Intel",
-      "file": "raymapper-collector-1.0.0-macos-x86_64.tar.gz",
-      "size": 19349694,
-      "sha256": "517d6f534f10e8a1733655ce71974c11542b527a36dfb79d6aa4f5cce90ebfac",
-      "url": "https://github.com/ffenyeroc/raymapper/releases/download/v1.0.0/raymapper-collector-1.0.0-macos-x86_64.tar.gz"
+      "file": "raymapper-collector-1.0.1-macos-x86_64.tar.gz",
+      "size": 19350911,
+      "sha256": "d33f5780c538354a03536339fff7162aea2bafc5cfec084a0de02ccb74e8f615",
+      "url": "https://github.com/ffenyeroc/raymapper/releases/download/v1.0.1/raymapper-collector-1.0.1-macos-x86_64.tar.gz"
     },
     {
       "platform": "Linux",
       "arch": "x86_64",
-      "file": "raymapper-collector-1.0.0-linux-x86_64.tar.gz",
-      "size": 29162058,
-      "sha256": "d13080ee5b7084e65e870e7920d53f3cb7630bb472133339071e3b7665b6833f",
-      "url": "https://github.com/ffenyeroc/raymapper/releases/download/v1.0.0/raymapper-collector-1.0.0-linux-x86_64.tar.gz"
+      "file": "raymapper-collector-1.0.1-linux-x86_64.tar.gz",
+      "size": 29176827,
+      "sha256": "3151f8c3abd975289a20da494f35ae380179e94ff8501fa06389629ecfe177a5",
+      "url": "https://github.com/ffenyeroc/raymapper/releases/download/v1.0.1/raymapper-collector-1.0.1-linux-x86_64.tar.gz"
     },
     {
       "platform": "Windows",
       "arch": "x64",
-      "file": "raymapper-collector-1.0.0-win64.zip",
-      "size": 15637546,
-      "sha256": "4a83c3f7c847b462381a79343586cb8b0dafd66363fff79968658f82bd6ad94d",
-      "url": "https://github.com/ffenyeroc/raymapper/releases/download/v1.0.0/raymapper-collector-1.0.0-win64.zip"
+      "file": "raymapper-collector-1.0.1-win64.zip",
+      "size": 15636912,
+      "sha256": "b957ab9078cc8102fab76daad55b654e9e517afb58240e22265f94ca8552b9cf",
+      "url": "https://github.com/ffenyeroc/raymapper/releases/download/v1.0.1/raymapper-collector-1.0.1-win64.zip"
     }
   ]
 }
-
