@@ -31,7 +31,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import psycopg
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 log = logging.getLogger("raymap")
@@ -753,4 +753,14 @@ def detections(start: Optional[str] = None, end: Optional[str] = None,
 
 _UI_DIR = Path(__file__).resolve().parent / "ui"
 if _UI_DIR.exists():
+    # Served explicitly so the public URLs stay /about and /downloads: StaticFiles
+    # with html=True does not map an extensionless path onto <name>.html.
+    @app.get("/about", include_in_schema=False)
+    def about_page() -> FileResponse:
+        return FileResponse(_UI_DIR / "about.html")
+
+    @app.get("/downloads", include_in_schema=False)
+    def downloads_page() -> FileResponse:
+        return FileResponse(_UI_DIR / "downloads.html")
+
     app.mount("/", StaticFiles(directory=str(_UI_DIR), html=True), name="ui")

@@ -1,0 +1,110 @@
+name: Release
+
+# Tag a commit (git tag v1.0.0 && git push --tags) to build the collector for
+# every supported platform and attach the archives to the GitHub Release.
+# Installer wrappers (.exe setup, .dmg, .deb) are a later step; these archives
+# are runnable as-is: unpack, run ./raymapper-collector --version.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: ${{ matrix.artifact }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, artifact: linux-x86_64, platform: linux }
+          - { os: windows-latest, artifact: win64, platform: windows }
+          - { os: macos-14, artifact: macos-arm64, platform: darwin }
+          - { os: macos-15-intel, artifact: macos-x86_64, platform: darwin }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          python -m pip install -q --upgrade pip
+          python -m pip install -q -r collector/requirements.txt "pyinstaller==6.*"
+
+      - name: Fetch adb (platform-tools)
+        shell: bash
+        run: |
+          python - <<'PY'
+          import urllib.request, zipfile
+          url = "https://dl.google.com/android/repository/platform-tools-latest-${{ matrix.platform }}.zip"
+          urllib.request.urlretrieve(url, "pt.zip")
+          zipfile.ZipFile("pt.zip").extractall("pt")
+          print("platform-tools extracted")
+          PY
+
+      - name: Build (onedir)
+        shell: bash
+        run: |
+          pyinstaller --noconfirm --clean --onedir --name raymapper-collector \
+            --paths . --distpath dist --workpath build adb_reader.py
+
+      - name: Bundle adb next to the binary
+        shell: bash
+        run: |
+          if [ "${{ matrix.platform }}" = "windows" ]; then
+            cp pt/platform-tools/adb.exe pt/platform-tools/AdbWinApi.dll \
+               pt/platform-tools/AdbWinUsbApi.dll dist/raymapper-collector/
+          else
+            cp pt/platform-tools/adb dist/raymapper-collector/
+            chmod +x dist/raymapper-collector/adb
+          fi
+
+      # Catches the failure mode a frozen build hits and a source run does not:
+      # a silently missing import.
+      - name: Smoke test the frozen binary
+        shell: bash
+        run: |
+          BIN=dist/raymapper-collector/raymapper-collector
+          [ -f "$BIN.exe" ] && BIN="$BIN.exe"
+          "$BIN" --version | tee version.txt
+          grep -q "raymap-collector 1\." version.txt
+
+      - name: Package + hash
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VER="${TAG#v}"
+          OUT="raymapper-collector-${VER}-${{ matrix.artifact }}"
+          if [ "${{ matrix.platform }}" = "windows" ]; then
+            python -c "import shutil; shutil.make_archive('$OUT','zip','dist/raymapper-collector')"
+            FILE="$OUT.zip"
+          else
+            tar -C dist -czf "$OUT.tar.gz" raymapper-collector
+            FILE="$OUT.tar.gz"
+          fi
+          python - "$FILE" > "$FILE.sha256" <<'PY'
+          import hashlib, sys
+          path = sys.argv[1]
+          h = hashlib.sha256(open(path, "rb").read()).hexdigest()
+          print(f"{h}  {path}")
+          PY
+          cat "$FILE.sha256"
+          echo "FILE=$FILE" >> "$GITHUB_ENV"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.FILE }}
+            ${{ env.FILE }}.sha256
+          generate_release_notes: true
+          fail_on_unmatched_files: true

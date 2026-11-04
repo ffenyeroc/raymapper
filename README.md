@@ -185,6 +185,9 @@ Ban a device: `INSERT INTO blocked_devices (device_hash, reason) VALUES ('<hash>
 | `scripts/migrate_drop_r8.py` | One-time drop of the unused `h3_r8` column |
 | `scripts/prune_device_qmdl.sh` | Prune raw device captures (`--keep N`, dry-run by default) |
 | `deploy/` | VPS deployment: `provision.sh`, systemd units, nginx site |
+| `ui/about.html`, `ui/downloads.html` | Static pages behind the site menu (`/about`, `/downloads`) |
+| `ui/data/downloads.json` | Download manifest the Downloads page renders (version, url, size, sha256) |
+| `.github/workflows/release.yml` | Tag `v*` → builds the collector for 4 platforms, attaches to the Release |
 | `scripts/check_state_coverage.py` | Per-state cell counts + mesh coverage check |
 | `scripts/build_places.py` | Rebuilds `ui/data/places.json.gz` from the Census gazetteer (`--download`) |
 | `launchd/`, `scripts/install_services.sh` | launchd agents for the API, nightly backups and the device reader |

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>About — raymap</title>
+  <meta name="description" content="What the raymap crowdsourced IMSI-catcher detection map shows, what it does not show, and what data it keeps." />
+  <link href="style.css" rel="stylesheet" />
+</head>
+<body class="page">
+  <header class="topbar">
+    <h1><a href="/">raymap</a></h1>
+    <div class="controls">
+      <a class="navlink" href="/">Map</a>
+      <a class="navlink" href="/downloads">Downloads</a>
+    </div>
+  </header>
+
+  <main class="prose">
+    <h2>About this map</h2>
+    <p>
+      Raymap is a crowdsourced map of what volunteer devices observe on the cellular
+      network: whether a phone spotted signals consistent with an IMSI catcher (a
+      "stingray"), or nothing unusual. It is drawn as an H3 hexagon mesh over the
+      United States.
+    </p>
+    <p>
+      It is a record of <strong>what was reported</strong>, not a measurement of a place.
+      Absence of reports is not absence of surveillance.
+    </p>
+
+    <h2>Reading the map</h2>
+    <table>
+      <tr><th>Cell</th><th>Meaning</th></tr>
+      <tr>
+        <td><span class="swatch-inline" style="background:#e0393e"></span>solid red</td>
+        <td>Detection reported by <strong>2 or more</strong> devices — corroborated</td>
+      </tr>
+      <tr>
+        <td><span class="swatch-inline" style="border:2.5px solid #e0393e"></span>hollow red</td>
+        <td>Detection from <strong>1</strong> device — unconfirmed</td>
+      </tr>
+      <tr>
+        <td><span class="swatch-inline" style="background:#2e9e4f"></span>solid green</td>
+        <td>No detection reported, from 2 or more devices</td>
+      </tr>
+      <tr>
+        <td><span class="swatch-inline" style="border:2.5px solid #2e9e4f"></span>hollow green</td>
+        <td>No detection reported, from 1 device</td>
+      </tr>
+      <tr>
+        <td><span class="swatch-inline" style="background:rgba(125,135,148,0.45);border:1px solid #7d8794"></span>grey</td>
+        <td>Nobody reported from here</td>
+      </tr>
+    </table>
+
+    <div class="callout">
+      <strong>Grey means nobody reported from that cell — it is not evidence of safety.</strong>
+      Most of the country is unreported most of the time. A green cell is also weaker than it
+      looks: it means a device's analyzer saw nothing it recognises, not that the air is clean.
+    </div>
+
+    <h2>What this project does not keep</h2>
+    <ul>
+      <li><strong>No coordinates.</strong> Each report is snapped to an H3 cell on arrival and the
+        latitude and longitude are discarded. Nothing finer than H3 r7 (~5 km²) is stored.</li>
+      <li><strong>No cell finer than 7.4 km is shown.</strong> The map never renders a hexagon
+        smaller than r6 (~36 km²) at any zoom, enforced by the API as well as the UI.</li>
+      <li><strong>No report timestamps.</strong> Responses carry a day or a month, never the
+        moment something was seen.</li>
+      <li><strong>No stable device identity.</strong> Each install generates a random id; only a
+        hash of it is uploaded, and it is not derived from hardware.</li>
+      <li><strong>No IP logs.</strong> The web server at the edge records no access log, and the
+        application logs no request addresses.</li>
+    </ul>
+    <p class="muted">
+      Raw reports are deleted after 72 hours; the aggregated daily cells after 90 days; the
+      monthly detection archive is kept indefinitely because it is already only counts per cell.
+    </p>
+
+    <h2>Data and licence</h2>
+    <p>
+      Aggregate data is published under
+      <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> — attribution:
+      "Raymap aggregate data © contributors, CC BY 4.0 — https://raymap.org". Every API response
+      carries that line, and monthly detection snapshots are published for reuse.
+    </p>
+    <p>
+      The code is Apache-2.0. Rayhunter is a separate GPL-3.0 program; no Rayhunter code is
+      included here.
+    </p>
+
+    <h2>Taking part</h2>
+    <p>
+      Reports come from a hotspot running Rayhunter plus the
+      <a href="/downloads">raymap collector</a>. It reads the device over USB every 15 minutes and
+      uploads a status record. Nothing about the device's own identity is sent.
+    </p>
+    <p>
+      To report a vulnerability — especially anything that leaks a coordinate, a precise time, or
+      a device identity — use the private reporting link on the
+      <a href="https://github.com/ffenyeroc/raymapper/security">repository's security page</a>,
+      or email <strong>security@raymap.org</strong>.
+    </p>
+
+    <h2>Known limits</h2>
+    <ul>
+      <li>Only the United States is covered, and only where someone has run a collector.</li>
+      <li>A single device's report is unconfirmed: one phone can be wrong, or spoofed.
+        Uploads are proof-of-work gated, which raises the cost of flooding but does not make a
+        report true.</li>
+      <li>Detection logic is Rayhunter's, not this project's.</li>
+      <li>Cells are coarse by design. Two detections 7 km apart look like one cell.</li>
+    </ul>
+
+    <p class="muted">
+      Source, methodology and operations notes:
+      <a href="https://github.com/ffenyeroc/raymapper">github.com/ffenyeroc/raymapper</a>
+    </p>
+  </main>
+</body>
+</html>

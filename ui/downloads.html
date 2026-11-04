@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Downloads — raymap</title>
+  <meta name="description" content="Download the raymap collector for Windows, macOS or Linux." />
+  <link href="style.css" rel="stylesheet" />
+</head>
+<body class="page">
+  <header class="topbar">
+    <h1><a href="/">raymap</a></h1>
+    <div class="controls">
+      <a class="navlink" href="/">Map</a>
+      <a class="navlink" href="/about">About</a>
+    </div>
+  </header>
+
+  <main class="prose">
+    <h2>Download the collector</h2>
+    <p>
+      The collector reads a hotspot running Rayhunter over USB and uploads a status record
+      every 15 minutes. Installers for Windows, macOS and Linux are published on
+      <a href="https://github.com/ffenyeroc/raymapper/releases">GitHub Releases</a>.
+    </p>
+
+    <p id="manifest-note" class="muted">Loading available builds…</p>
+    <div id="artifacts"></div>
+
+    <h2>What you need</h2>
+    <ul>
+      <li>A hotspot with <a href="https://github.com/EFForg/rayhunter">Rayhunter</a> installed
+        (this release is written for 0.12.0).</li>
+      <li>USB debugging enabled on the device, and the “Allow USB debugging” prompt accepted
+        once per computer.</li>
+      <li>Nothing else — <code>adb</code> ships inside the installer.</li>
+    </ul>
+
+    <h2>Verify the download</h2>
+    <p>Each build is listed with its SHA-256. On macOS or Linux:</p>
+    <pre><code>shasum -a 256 raymapper-collector-*.{zip,tar.gz}</code></pre>
+    <p>Compare the output with the hash on this page. On Windows, use
+      <code>certutil -hashfile &lt;file&gt; SHA256</code>.</p>
+
+    <h2>These builds are not code-signed</h2>
+    <div class="callout">
+      <strong>macOS</strong> will refuse a downloaded, unsigned app with “cannot be opened
+      because the developer cannot be verified”. Right-click the file → <em>Open</em>, or run
+      <code>xattr -d com.apple.quarantine &lt;file&gt;</code>.<br />
+      <strong>Windows</strong> SmartScreen shows “Windows protected your PC”. Choose
+      <em>More info → Run anyway</em>.<br />
+      Signing certificates cost money annually and this is a volunteer project; if you would
+      rather not bypass the warning, build from source.
+    </div>
+
+    <h2>What it sends</h2>
+    <p>
+      One record per cycle: the H3 cell of the device's location, whether an analyzer fired,
+      and a hash of a random per-install id. No coordinates, no IMSI, no phone number, no serial
+      number. Uploads go to <code>https://api.raymap.org/ingest</code>, and are proof-of-work
+      signed. Read the <a href="/about">privacy summary</a>.
+    </p>
+    <p class="muted">
+      Running your own server instead? Point the collector at it with
+      <code>--endpoint https://your-host/ingest</code>.
+    </p>
+  </main>
+
+  <script src="downloads.js"></script>
+</body>
+</html>

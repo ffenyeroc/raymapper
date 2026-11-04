@@ -47,6 +47,8 @@ DEVICE_MANIFEST = f"{DEVICE_QMDL}/manifest.toml"
 # upgrade that moves those files breaks it silently. Warn instead.
 PINNED_RAYHUNTER = "0.12.0"
 
+__version__ = "1.0.0"
+
 
 # --------------------------------------------------------------------------
 # Privacy helpers
@@ -57,6 +59,9 @@ def _device_id_path() -> Path:
         return Path(base) / "device_id"
     if sys.platform == "darwin":
         return Path.home() / "Library" / "Application Support" / "raymap" / "device_id"
+    if sys.platform == "win32":
+        root = os.environ.get("APPDATA") or str(Path.home())
+        return Path(root) / "raymap" / "device_id"
     return Path.home() / ".raymap" / "device_id"
 
 
@@ -131,8 +136,21 @@ def solve_pow(raw_body: bytes, device_hash: str, n_records: int) -> str:
 # --------------------------------------------------------------------------
 # ADB helpers
 # --------------------------------------------------------------------------
+def adb_bin() -> str:
+    """The adb next to the executable when frozen (installers bundle it), else PATH."""
+    name = "adb.exe" if sys.platform == "win32" else "adb"
+    bundled = Path(sys.executable).parent / name
+    return str(bundled) if bundled.exists() else name
+
+
+# A windowed build must not flash a console every time adb runs.
+_NO_WINDOW = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
+
+
 def adb_devices() -> List[str]:
-    out = subprocess.run(["adb", "devices"], capture_output=True, text=True).stdout
+    out = subprocess.run(
+        [adb_bin(), "devices"], capture_output=True, text=True, **_NO_WINDOW
+    ).stdout
     serials = []
     for line in out.splitlines()[1:]:
         parts = line.split()
@@ -143,7 +161,10 @@ def adb_devices() -> List[str]:
 
 def adb_shell(serial: str, command: str) -> str:
     res = subprocess.run(
-        ["adb", "-s", serial, "shell", command], capture_output=True, text=True
+        [adb_bin(), "-s", serial, "shell", command],
+        capture_output=True,
+        text=True,
+        **_NO_WINDOW,
     )
     return res.stdout
 
@@ -391,7 +412,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="ADB reader for Rayhunter hotspots")
     parser.add_argument(
         "--endpoint",
-        default=os.environ.get("RAYMAP_INGEST", "http://localhost:8000/ingest"),
+        default=os.environ.get("RAYMAP_INGEST", "https://api.raymap.org/ingest"),
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"raymap-collector {__version__}"
     )
     parser.add_argument(
         "--interval", type=int, default=0,

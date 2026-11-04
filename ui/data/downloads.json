@@ -1,0 +1,6 @@
+{
+  "version": null,
+  "endpoint": "https://api.raymap.org/ingest",
+  "release_url": "https://github.com/ffenyeroc/raymapper/releases",
+  "artifacts": []
+}

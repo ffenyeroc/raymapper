@@ -228,6 +228,18 @@ async function loadPlaces() {
   return placesDb;
 }
 
+// The site menu is a <details>; it opens natively but does not close on an
+// outside click or Escape the way users expect.
+const menuEl = document.getElementById("menu");
+if (menuEl) {
+  document.addEventListener("click", (e) => {
+    if (menuEl.open && !menuEl.contains(e.target)) menuEl.open = false;
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && menuEl.open) menuEl.open = false;
+  });
+}
+
 searchForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const query = searchInput.value.trim();

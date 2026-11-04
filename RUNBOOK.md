@@ -144,6 +144,33 @@ endpoint is `https://api.raymap.org/ingest`.
 - **Upgrades**: re-run `provision.sh` (rsync excludes `.env` and the history exports), then
   `systemctl restart raymap-api`.
 
+## Releases (collector builds)
+
+Tagging builds the collector for every supported platform and attaches the archives to a
+GitHub Release:
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0     # .github/workflows/release.yml
+```
+
+Four legs: `linux-x86_64`, `win64`, `macos-arm64`, `macos-x86_64` (`macos-15-intel` — the
+`macos-13` image is retired). Each leg builds `adb_reader.py` with PyInstaller `--onedir`,
+copies `adb` from Android platform-tools next to the binary, runs the frozen binary's
+`--version` as a smoke test, and uploads `<archive>` + `<archive>.sha256`.
+
+Downloads are hosted on **GitHub Releases** because release-asset egress is free there —
+never through the VPS, whose free egress is 1 GB/month (~25 downloads).
+
+After a release, update the page the Downloads page renders, then commit:
+
+```bash
+gh release view v1.0.0 --json assets --jq '.assets[] | {name, size, url}'   # gather
+# edit ui/data/downloads.json: version, artifacts[] with file/size/sha256/url
+```
+
+The page validates the manifest at runtime and shows "no installers published yet" when
+`artifacts` is empty, so it is safe to ship ahead of the first release.
+
 ## Moderation
 
 ```bash

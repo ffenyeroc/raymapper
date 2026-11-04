@@ -87,9 +87,15 @@ systemctl enable --now raymap-api.service
 systemctl enable --now raymap-backup.timer
 
 # --- nginx ------------------------------------------------------------------
-install -m 644 "$APP/deploy/nginx-raymap.conf" /etc/nginx/sites-available/raymap
-ln -sf /etc/nginx/sites-available/raymap /etc/nginx/sites-enabled/raymap
-rm -f /etc/nginx/sites-enabled/default
+# Never overwrite an existing site: certbot rewrites this file in place to add
+# the 443 server block, so re-running provision would silently drop TLS.
+if [ -f /etc/nginx/sites-available/raymap ]; then
+  echo "nginx site already present — leaving it alone (certbot owns the TLS block)"
+else
+  install -m 644 "$APP/deploy/nginx-raymap.conf" /etc/nginx/sites-available/raymap
+  ln -sf /etc/nginx/sites-available/raymap /etc/nginx/sites-enabled/raymap
+  rm -f /etc/nginx/sites-enabled/default
+fi
 nginx -t
 systemctl reload nginx
 
