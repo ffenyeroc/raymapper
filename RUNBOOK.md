@@ -153,8 +153,9 @@ GitHub Release:
 git tag v1.0.0 && git push origin v1.0.0     # .github/workflows/release.yml
 ```
 
-Four legs: `linux-x86_64`, `win64`, `macos-arm64`, `macos-x86_64` (`macos-15-intel` — the
-`macos-13` image is retired). Each leg builds `adb_reader.py` with PyInstaller `--onedir`,
+Four legs: `linux-x86_64`, `win64`, `macos-arm64` (`macos-15`), `macos-x86_64`
+(`macos-15-intel` — `macos-14` is x64 *and* deprecated, and `macos-13` is retired, so the
+label matters: getting it wrong ships two Intel builds and no Apple Silicon one). Each leg builds `adb_reader.py` with PyInstaller `--onedir`,
 copies `adb` from Android platform-tools next to the binary, runs the frozen binary's
 `--version` as a smoke test, and uploads `<archive>` + `<archive>.sha256`.
 

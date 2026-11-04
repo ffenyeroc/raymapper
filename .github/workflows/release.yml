@@ -26,7 +26,9 @@ jobs:
         include:
           - { os: ubuntu-22.04, artifact: linux-x86_64, platform: linux }
           - { os: windows-latest, artifact: win64, platform: windows }
-          - { os: macos-14, artifact: macos-arm64, platform: darwin }
+          # macos-15 is arm64; macos-15-intel is x64 (macos-14 is x64 and deprecated,
+          # so labelling it arm64 would quietly ship two Intel builds).
+          - { os: macos-15, artifact: macos-arm64, platform: darwin }
           - { os: macos-15-intel, artifact: macos-x86_64, platform: darwin }
     steps:
       - uses: actions/checkout@v4
