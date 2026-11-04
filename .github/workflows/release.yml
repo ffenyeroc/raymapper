@@ -71,6 +71,22 @@ jobs:
             chmod +x dist/raymapper-collector/adb
           fi
 
+      # PyInstaller collects Python.framework without its _CodeSignature/CodeResources
+      # while the inner binary still declares resources. Gatekeeper then refuses the
+      # download with "Python.framework is damaged and can't be opened". Re-sign the
+      # bundle ad-hoc and fail the build if it does not verify.
+      - name: Re-sign for macOS Gatekeeper
+        if: matrix.platform == 'darwin'
+        shell: bash
+        run: |
+          for fw in $(find dist/raymapper-collector -name '*.framework' -type d); do
+            codesign --force --deep --sign - "$fw"
+            codesign --verify --strict "$fw" && echo "verified: $fw"
+          done
+          BIN=dist/raymapper-collector/raymapper-collector
+          codesign --force --sign - "$BIN"
+          codesign --verify --strict "$BIN" && echo "verified: $BIN"
+
       # Catches the failure mode a frozen build hits and a source run does not:
       # a silently missing import.
       - name: Smoke test the frozen binary

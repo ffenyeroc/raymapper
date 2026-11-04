@@ -47,7 +47,7 @@ DEVICE_MANIFEST = f"{DEVICE_QMDL}/manifest.toml"
 # upgrade that moves those files breaks it silently. Warn instead.
 PINNED_RAYHUNTER = "0.12.0"
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 
 # --------------------------------------------------------------------------
