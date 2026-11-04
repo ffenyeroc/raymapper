@@ -93,7 +93,10 @@ rm -f /etc/nginx/sites-enabled/default
 nginx -t
 systemctl reload nginx
 
-IP=$(hostname -I | awk '{print $1}')
+# External IP, not `hostname -I` (which reports the internal 10.x address).
+IP=$(curl -s -m 3 -H 'Metadata-Flavor: Google' \
+  'http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip' 2>/dev/null || true)
+[ -n "$IP" ] || IP=$(hostname -I | awk '{print $1}')
 cat <<EOF
 
 Provisioned.
