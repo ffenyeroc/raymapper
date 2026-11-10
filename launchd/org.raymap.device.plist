@@ -4,8 +4,8 @@
 <!-- Install with: ./scripts/install_services.sh install
      Reports from an attached Rayhunter hotspot every 15 minutes. Harmless
      without a device: the reader waits quietly for ADB.
-     __RAYMAP_ROOT__ and __HOME__ are substituted at install time so this file
-     stays free of any local path. -->
+     Install-time paths (repository root, home directory) are substituted by
+     scripts/install_services.sh so this file ships free of any local path. -->
 <plist version="1.0">
 <dict>
   <key>Label</key>
