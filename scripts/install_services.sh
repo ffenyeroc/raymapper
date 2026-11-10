@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
-# Install/remove the launchd agents for the local deployment.
+# Install/remove the optional macOS LaunchAgent that keeps the collector running
+# at login. Not part of the raymap.org deployment — the server runs on systemd.
 #   ./scripts/install_services.sh install|uninstall|status
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 AGENTS="$HOME/Library/LaunchAgents"
 DOMAIN="gui/$(id -u)"
-LABELS=(org.raymap.api org.raymap.backup org.raymap.device)
+LABELS=(org.raymap.device)
 
 install() {
   mkdir -p "$AGENTS" "$HOME/Library/Logs"
   for label in "${LABELS[@]}"; do
-    cp "$ROOT/launchd/$label.plist" "$AGENTS/$label.plist"
+    # The plist in the repo carries placeholders, not this machine's paths.
+    sed -e "s|__RAYMAP_ROOT__|$ROOT|g" -e "s|__HOME__|$HOME|g" \
+      "$ROOT/launchd/$label.plist" > "$AGENTS/$label.plist"
     launchctl bootout "$DOMAIN/$label" 2>/dev/null || true
     # bootout returns before launchd finishes tearing the job down; bootstrap
     # right after it fails with "Input/output error", so retry briefly.

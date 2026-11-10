@@ -5,8 +5,8 @@
 - Only a hash of a random per-install id is uploaded. The ADB serial, IMSI, IMEI and phone
   number are never hashed, logged or transmitted.
 - Coordinates are redacted from logs unless `--show-coords` is passed explicitly.
-- The proof-of-work rule must stay byte-identical to `pow_verify()` in `raymap-map/app_api.py`;
-  change both together or uploads start failing with 428.
+- The proof-of-work rule must stay byte-identical to `pow_verify()` in `app_api.py` at the
+  repository root; change both together or uploads start failing with 428.
 - The device's `qmdl` captures are never uploaded, only the analyzer `ndjson` summary.
 
 ## Running things

@@ -3,9 +3,9 @@
 **https://raymap.org** · [github.com/ffenyeroc/raymapper](https://github.com/ffenyeroc/raymapper)
 
 Hosts and visualizes crowdsourced Rayhunter hotspot detections as an **H3 hexagon mesh**
-over the US. One small Ubuntu VPS runs everything — PostgreSQL 16, uvicorn and nginx,
-provisioned by `deploy/provision.sh` and served at `https://raymap.org`. Nothing is hosted
-from a workstation.
+over the US. A single Ubuntu VPS runs everything — PostgreSQL 16, uvicorn and nginx —
+provisioned by `deploy/provision.sh` and served at `https://raymap.org`. Workstations only
+run the collector.
 
 > This repository holds both halves: the map service (everything at the root) and the
 > device client in [`collector/`](collector/README.md), which reads a USB-tethered hotspot
@@ -72,12 +72,16 @@ sudo certbot --nginx -d raymap.org -d api.raymap.org
 
 `provision.sh` installs the packages, creates the database and service user, writes `.env`
 with a generated DB password and admin token, applies the schema, and enables
-`raymap-api.service` plus the nightly `raymap-backup.timer`. The deployment runs the app's
-own maintenance loop for aggregation and retention; a managed cloud variant is not
-implemented and nothing depends on one.
+`raymap-api.service` plus the nightly `raymap-backup.timer`. Aggregation and retention run
+inside the application's own maintenance loop, so there is no external scheduler, queue or
+managed-cloud dependency.
 
 Upgrades, backups and restore drills, moderation, TLS renewal and troubleshooting are in
 [`RUNBOOK.md`](RUNBOOK.md).
+
+Device-side installers for Linux, macOS and Windows are published on the
+[releases page](https://github.com/ffenyeroc/raymapper/releases) and mirrored at
+<https://raymap.org/downloads>; `RUNBOOK.md` → *Releases* describes how they are built.
 
 ## Development
 
@@ -204,8 +208,8 @@ Ban a device: `INSERT INTO blocked_devices (device_hash, reason) VALUES ('<hash>
 | `.github/workflows/release.yml` | Tag `v*` → builds the collector for 4 platforms, attaches to the Release |
 | `scripts/check_state_coverage.py` | Per-state cell counts + mesh coverage check |
 | `scripts/build_places.py` | Rebuilds `ui/data/places.json.gz` from the Census gazetteer (`--download`) |
-| `launchd/`, `scripts/install_services.sh` | Optional macOS agent for keeping the collector running in the background |
-| `scripts/backup_db.sh` / `scripts/run_api.sh` | `pg_dump` with pruning / uvicorn launcher used by the macOS agents |
+| `launchd/`, `scripts/install_services.sh` | Optional macOS LaunchAgent that keeps the collector running at login — not part of the raymap.org deployment |
+| `scripts/backup_db.sh` / `scripts/run_api.sh` | `pg_dump` with pruning, run by `raymap-backup.service`; uvicorn launcher for local development |
 | `RUNBOOK.md` | Operations: start/stop, backups, restore drill, moderation, upgrades |
 | `test_api.py`, `test_adb.py`, `tests/test_geo.js`, `tests/test_search.js`, `tests/test_downloads.js` | Unit tests |
 | `LICENSE` / `LICENSE-DATA` / `NOTICE` | Apache-2.0 code, CC BY 4.0 data, third-party attribution |
@@ -213,7 +217,7 @@ Ban a device: `INSERT INTO blocked_devices (device_hash, reason) VALUES ('<hash>
 ## Tests
 
 ```bash
-./.venv/bin/python -m unittest -q test_api test_adb   # 34 tests
+./.venv/bin/python -m unittest -q test_api test_adb   # 42 tests
 node --test tests/test_geo.js tests/test_search.js tests/test_downloads.js   # 19 tests
 ./.venv/bin/python scripts/check_state_coverage.py    # geometry + coverage check
 ```

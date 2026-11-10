@@ -13,6 +13,9 @@ state.jsonl
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+*.pfx
 
 # OS / editors
 .DS_Store

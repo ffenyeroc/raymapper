@@ -157,7 +157,7 @@ curl -X DELETE $API/internal/block/<hash> -H "X-Raymap-Admin: $TOKEN"
 
 # retract a whole day (raw reports + aggregates + that month's archive, then re-fold)
 curl -X POST $API/internal/retract -H "X-Raymap-Admin: $TOKEN" -H 'content-type: application/json' \
-     -d '{"day":"2026-11-11","reason":"bad upload"}'
+     -d '{"day":"YYYY-MM-DD","reason":"bad upload"}'
 
 curl $API/internal/audit?limit=20 -H "X-Raymap-Admin: $TOKEN"
 ```
@@ -211,7 +211,7 @@ Tagging builds the collector for every supported platform and attaches the archi
 GitHub Release:
 
 ```bash
-git tag v1.0.0 && git push origin v1.0.0     # .github/workflows/release.yml
+git tag v1.0.2 && git push origin v1.0.2     # .github/workflows/release.yml
 ```
 
 Four legs: `linux-x86_64`, `win64`, `macos-arm64` (`macos-15`), `macos-x86_64`
@@ -221,13 +221,31 @@ builds `adb_reader.py` with PyInstaller `--onedir`, copies `adb` from Android pl
 next to the binary, runs the frozen binary’s `--version` as a smoke test, and uploads
 `<archive>` + `<archive>.sha256`.
 
+Two build details are load-bearing — the release fails or the download breaks if they are
+removed:
+
+- **macOS legs re-sign the bundle.** PyInstaller collects `Python.framework` without its
+  `_CodeSignature/CodeResources`, so the archive fails `codesign --verify --strict` and
+  Gatekeeper reports *“Python.framework is damaged”* on first launch. The workflow signs every
+  framework and the binary ad-hoc (`codesign --force --deep --sign -`) and verifies each one.
+  That satisfies integrity checking but is **not notarisation**: browser downloads still hit
+  the “unidentified developer” prompt. `curl`/`gh` downloads are not quarantined.
+- **The Linux leg needs glibc ≥ 2.35** because it builds on Ubuntu 22.04 (→ Ubuntu 22.04+,
+  Debian 12+). Bumping the runner raises that floor for every user.
+
+Users can verify an archive before running it:
+
+```bash
+shasum -a 256 -c raymapper-collector-1.0.2-linux-x86_64.tar.gz.sha256
+```
+
 Downloads are hosted on **GitHub Releases** because release-asset egress is free there —
 never through the VPS, whose free egress is 1 GB/month (~25 downloads).
 
 After a release, update the manifest the Downloads page renders, then commit:
 
 ```bash
-gh release view v1.0.0 --json assets --jq '.assets[] | {name, size, url}'   # gather
+gh release view v1.0.2 --json assets --jq '.assets[] | {name, size, url}'   # gather
 # edit ui/data/downloads.json: version, artifacts[] with file/size/sha256/url
 ```
 

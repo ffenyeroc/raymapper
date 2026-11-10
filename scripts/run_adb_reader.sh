@@ -7,7 +7,9 @@ cd "$(dirname "$0")/.."
 
 [ -f .env ] && set -a && . ./.env && set +a
 INTERVAL="${RAYMAP_UPLOAD_INTERVAL_S:-900}"
-ENDPOINT="${RAYMAP_INGEST:-http://127.0.0.1:8000/ingest}"
+# .env wins; the fallback is the public endpoint, since this wrapper exists to keep
+# a station reporting and a missing .env should not silently retry against localhost.
+ENDPOINT="${RAYMAP_INGEST:-https://api.raymap.org/ingest}"
 
 while true; do
   ./.venv/bin/python -u adb_reader.py --interval "$INTERVAL" --endpoint "$ENDPOINT" || true

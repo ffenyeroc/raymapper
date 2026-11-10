@@ -13,7 +13,8 @@ Mapping and server issues belong in the map/API code at the repository root.
 ## Reporting
 
 Use **GitHub's private vulnerability reporting** (*Security* tab → *Report a
-vulnerability*), not a public issue. Say which version you are running (the release tag or git
-commit), the device model and the log line.
+vulnerability*) or email **security@raymap.org**, not a public issue. Say which version you are
+running (the release tag or git commit), the device model and the log line.
 
-Expect an acknowledgement within a week; there is no paid on-call beyond that.
+Expect an acknowledgement within a week; there is no paid on-call beyond that. Only the latest
+release (`v1.0.x`) is supported.

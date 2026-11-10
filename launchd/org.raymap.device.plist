@@ -3,7 +3,9 @@
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- Install with: ./scripts/install_services.sh install
      Reports from an attached Rayhunter hotspot every 15 minutes. Harmless
-     without a device: the reader waits quietly for ADB. -->
+     without a device: the reader waits quietly for ADB.
+     __RAYMAP_ROOT__ and __HOME__ are substituted at install time so this file
+     stays free of any local path. -->
 <plist version="1.0">
 <dict>
   <key>Label</key>
@@ -12,11 +14,11 @@
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>/Users/admin/raymap-map/scripts/run_adb_reader.sh</string>
+    <string>__RAYMAP_ROOT__/scripts/run_adb_reader.sh</string>
   </array>
 
   <key>WorkingDirectory</key>
-  <string>/Users/admin/raymap-map</string>
+  <string>__RAYMAP_ROOT__</string>
 
   <key>RunAtLoad</key>
   <true/>
@@ -26,9 +28,9 @@
   <integer>30</integer>
 
   <key>StandardOutPath</key>
-  <string>/Users/admin/Library/Logs/raymap-device.log</string>
+  <string>__HOME__/Library/Logs/raymap-device.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/admin/Library/Logs/raymap-device.log</string>
+  <string>__HOME__/Library/Logs/raymap-device.log</string>
 
   <key>EnvironmentVariables</key>
   <dict>

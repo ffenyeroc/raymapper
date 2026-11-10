@@ -7,14 +7,24 @@ cycle to the map.
 > Part of the raymapper monorepo: this directory is the device client, the map service is
 > at the repository root. Run everything below from `collector/`.
 
-It talks to the hotspot over USB and uploads over the computer's own internet connection —
-no mobile data, and nothing about the device's identity leaves the machine.
+It talks to the hotspot over USB and uploads over the computer's own internet connection — no
+mobile data. The ADB serial, IMSI, IMEI and phone number are never read into a record, logged or
+transmitted; the only identifier that leaves the machine is a hash of a random per-install id.
 
 > **Shipped builds** are self-contained binaries attached to
 > [GitHub Releases](https://github.com/ffenyeroc/raymapper/releases): unpack, run
 > `./raymapper-collector --version`, then let it run. `adb` is bundled, and the only
 > requirement is a hotspot with Rayhunter installed and USB debugging enabled. Running from
 > this source tree (below) is for development.
+>
+> **macOS:** the archives are ad-hoc signed but **not notarised**. If Gatekeeper blocks the
+> first launch ("cannot be verified" or "is damaged"), right-click → *Open*, or clear the flag
+> once with `xattr -dr com.apple.quarantine raymapper-collector`. Downloads made with `curl`
+> or `gh` are not quarantined and start normally.
+>
+> **Linux:** built against **glibc 2.35** — Ubuntu 22.04+, Debian 12+ and newer. Older
+> distributions fail with `GLIBC_2.34 not found`. `adb` needs USB access: a `no permissions`
+> error means no udev rule for the device and no membership in `plugdev`.
 
 ---
 
@@ -30,7 +40,7 @@ no mobile data, and nothing about the device's identity leaves the machine.
 | `config.py` / `config.toml` | Config loading (stdlib `tomllib`) + editable settings. |
 | `mock_rayhunter.py` | Fake of the device API for testing without hardware. |
 | `mock_map_server.py` | Receiver that prints/records uploaded batches — verifies the upload half. |
-| `org.raymap.collector.plist` | `launchd` LaunchAgent manifest (runs it in the background). |
+| `../launchd/org.raymap.device.plist` | `launchd` LaunchAgent that runs the collector at login (installed via `scripts/install_services.sh`) |
 | `test_collector.py` | Unit tests for the poll/upload schedule (no device required). |
 | `requirements.txt` | Only `requests`. |
 
@@ -72,7 +82,7 @@ python3 -m venv .venv
 To point at a real map server and real USB device:
 
 1. Edit `config.toml`:
-   - `server_url = "https://your.map.server/ingest"`
+   - `server_url = "https://api.raymap.org/ingest"`
    - `gps_source = "fixed"` with your lat/lon, or `"api"` to read from the device.
    - `device_id` (optional — a random one is generated and hashed if omitted).
 2. Run:
@@ -82,12 +92,17 @@ To point at a real map server and real USB device:
 
 ## Run as a background macOS service (launchd)
 
+The LaunchAgent at the repository root also works for this client — it wraps `adb_reader.py`,
+which is the same poll-and-upload loop:
+
 ```bash
-cp org.raymap.collector.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/org.raymap.collector.plist
-# stop with: launchctl unload ~/Library/LaunchAgents/org.raymap.collector.plist
+./scripts/install_services.sh install     # copies launchd/org.raymap.device.plist into ~/Library/LaunchAgents
+./scripts/install_services.sh status      # launchctl list | grep raymap
+./scripts/install_services.sh uninstall   # stop and remove
 ```
-Edit the two absolute paths in the plist first to match your checkout.
+
+The installed copy has this checkout's paths substituted in, so it survives being run from any
+directory. Logs go to `~/Library/Logs/raymap-device.log`.
 
 ---
 
@@ -124,11 +139,14 @@ detection".
 - **Privacy**: the device id is **hashed before upload**; location is user-set
   (fixed) or sourced from the device.
 
-## Notes / limitations
-- macOS RNDIS-tethered devices may need the `HoRNDIS` driver; CDC-ECM devices
-  work natively. `discovery.py` probes whatever interface presents.
-- This is a stationary (USB-attached) design — it is not for real-time mobile
-  tracking, which intentionally fits the privacy-preserving aggregate map.
-- The map service lives in the companion `raymap-map` project (`POST /ingest`).
-  Set `server_url` to its ingest endpoint; until then the uploader queues and
-  logs locally without losing records.
+## Notes and limitations
+
+- Most hotspots expose a CDC-ECM interface and are reachable over ADB without extra drivers.
+  macOS no longer ships an RNDIS driver, so a device that offers only RNDIS will not enumerate
+  there — a platform limitation rather than a collector setting. `discovery.py` probes whatever
+  interface the OS presents.
+- The design assumes a USB-attached station, so it reports one place rather than a vehicle in
+  motion. That is deliberate: the map publishes cells, not routes.
+- The map service is the root of this repository (`POST /ingest`, default
+  `https://api.raymap.org/ingest`). If the endpoint is unreachable the uploader keeps records in
+  its local queue and retries, so nothing is dropped.

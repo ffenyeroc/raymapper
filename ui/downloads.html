@@ -34,6 +34,8 @@
       <li>USB debugging enabled on the device, and the “Allow USB debugging” prompt accepted
         once per computer.</li>
       <li>Nothing else — <code>adb</code> ships inside the installer.</li>
+      <li>Linux: glibc <strong>2.35 or newer</strong> — Ubuntu 22.04+, Debian 12+, Fedora 36+
+        and newer. Older distributions fail with <code>GLIBC_2.34 not found</code>.</li>
     </ul>
 
     <h2>Verify the download</h2>
@@ -42,11 +44,14 @@
     <p>Compare the output with the hash on this page. On Windows, use
       <code>certutil -hashfile &lt;file&gt; SHA256</code>.</p>
 
-    <h2>These builds are not code-signed</h2>
+    <h2>These builds are not notarised</h2>
     <div class="callout">
-      <strong>macOS</strong> will refuse a downloaded, unsigned app with “cannot be opened
-      because the developer cannot be verified”. Right-click the file → <em>Open</em>, or run
-      <code>xattr -d com.apple.quarantine &lt;file&gt;</code>.<br />
+      The archives are ad-hoc signed, so their contents cannot be altered without breaking the
+      signature — but they carry no Apple Developer ID and are not notarised by Microsoft or
+      Apple.<br />
+      <strong>macOS</strong> may refuse the first launch with “cannot be opened because the
+      developer cannot be verified”. Right-click the app → <em>Open</em>, or clear the flag for
+      the whole folder once: <code>xattr -dr com.apple.quarantine raymapper-collector</code>.<br />
       <strong>Windows</strong> SmartScreen shows “Windows protected your PC”. Choose
       <em>More info → Run anyway</em>.<br />
       Signing certificates cost money annually and this is a volunteer project; if you would

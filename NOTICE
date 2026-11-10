@@ -1,5 +1,5 @@
-raymap-map — third-party notices
-================================
+Raymap — third-party notices
+============================
 
 MapLibre GL JS 3.6.2 (ui/vendor_maplibre-gl.js, .css)
   Copyright (c) MapLibre contributors — BSD-3-Clause
@@ -31,6 +31,15 @@ This project talks to its local HTTP API; no Rayhunter code is included here.
 Android platform-tools (`adb`) — bundled inside the collector installers
   Copyright (C) The Android Open Source Project — Apache-2.0
   https://developer.android.com/tools/releases/platform-tools
+
+Python runtime inside the collector installers (PyInstaller onedir bundles)
+  CPython — PSF License 2.0 — https://docs.python.org/3/license.html
+  PyInstaller bootloader — GPL-2.0 with the exception that permits distributing
+    bundled applications under their own terms — https://pyinstaller.org/en/stable/license.html
+  Collector runtime dependencies, unmodified:
+    requests (Apache-2.0) · urllib3 (MIT) · certifi (MPL-2.0)
+    charset-normalizer (MIT) · idna (BSD-3-Clause)
+  The server is run from source and is not redistributed as a binary.
 
 Aggregate data published by this project is licensed CC BY 4.0 — see LICENSE-DATA.
 Code is licensed Apache-2.0 — see LICENSE.
