@@ -252,6 +252,16 @@ gh release view v1.0.2 --json assets --jq '.assets[] | {name, size, url}'   # ga
 The page validates the manifest at runtime and shows “no installers published yet” when
 `artifacts` is empty, so it is safe to ship ahead of the first release.
 
+The workflow can only generate a commit list. Replace it on the release page with notes a user
+can act on — what changed, platform requirements, first-launch steps, how to verify the hash:
+
+```bash
+gh release edit v1.0.2 --notes-file /tmp/notes.md
+```
+
+Mark a superseded release pre-release so it is never offered as the current build:
+`gh release edit v1.0.2 --prerelease`.
+
 ## Troubleshooting
 
 | Symptom | Check |
